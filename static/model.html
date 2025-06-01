@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map.glb 모델 테스트</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            font-size: 14px;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            font-size: 12px;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            z-index: 200;
+        }
+        
+        #loading.hidden {
+            display: none;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="loading">
+            <div class="loading-spinner"></div>
+            <div>map.glb 로딩 중...</div>
+        </div>
+        
+        <div id="info">
+            <div><strong>Map.glb 모델 테스트</strong></div>
+            <div>로딩 상태: <span id="status">로딩 중...</span></div>
+            <div>카메라 위치: <span id="camera-pos">-</span></div>
+        </div>
+        
+        <div id="controls">
+            <div><strong>컨트롤:</strong></div>
+            <div>• 마우스 드래그: 카메라 회전</div>
+            <div>• 마우스 휠: 줌 인/아웃</div>
+            <div>• WASD / 화살표: 카메라 이동</div>
+            <div>• R: 카메라 위치 리셋</div>
+        </div>
+    </div>
+
+    <!-- Three.js 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // 전역 변수
+        let scene, camera, renderer, controls;
+        let mapModel = null;
+        let gltfLoader;
+        
+        // 로딩 UI 요소
+        const loadingDiv = document.getElementById('loading');
+        const statusSpan = document.getElementById('status');
+        const cameraPosSpan = document.getElementById('camera-pos');
+        
+        // 초기화
+        function init() {
+            // Scene 생성
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // 하늘색 배경
+            
+            // Camera 생성 (게임 렌더러와 동일한 설정)
+            camera = new THREE.PerspectiveCamera(
+                75, // fov
+                window.innerWidth / window.innerHeight, // aspect
+                0.1, // near
+                1000 // far
+            );
+            
+            // 카메라 초기 위치 (맵을 잘 볼 수 있는 위치)
+            camera.position.set(0, 25, 25);
+            camera.lookAt(0, 0, 0);
+            
+            // Renderer 생성
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            
+            
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // 조명 설정 (게임 렌더러와 동일)
+            setupLighting();
+            
+            // 컨트롤 설정
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 100;
+            controls.minDistance = 5;
+            
+            // GLTF 로더 생성
+            gltfLoader = new THREE.GLTFLoader();
+            
+            // 맵 모델 로드
+            loadMapModel();
+            
+            // 키보드 이벤트 리스너
+            setupKeyboardControls();
+            
+            // 리사이즈 이벤트
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // 렌더링 시작
+            animate();
+        }
+        
+        // 조명 설정 (게임 렌더러와 동일)
+        function setupLighting() {
+            // Ambient Light
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            // Directional Light (메인 조명)
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 100;
+            directionalLight.shadow.camera.left = -50;
+            directionalLight.shadow.camera.right = 50;
+            directionalLight.shadow.camera.top = 50;
+            directionalLight.shadow.camera.bottom = -50;
+            scene.add(directionalLight);
+            
+            // Top Light
+            const topLight = new THREE.DirectionalLight(0xffffff, 0.3);
+            topLight.position.set(0, 40, 0);
+            scene.add(topLight);
+        }
+        
+        // 맵 모델 로드
+        function loadMapModel() {
+            statusSpan.textContent = '로딩 중...';
+            
+            gltfLoader.load(
+                'assets/map.glb',
+                function(gltf) {
+                    // 로드 성공
+                    mapModel = gltf.scene;
+                    mapModel.position.y = 0;
+                    
+                    // 그림자 설정
+                    mapModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.receiveShadow = true;
+                            child.castShadow = true;
+                        }
+                    });
+                    
+                    scene.add(mapModel);
+                    
+                    // 로딩 완료
+                    loadingDiv.classList.add('hidden');
+                    statusSpan.textContent = '로딩 완료';
+                    
+                    console.log('map.glb 로드 완료:', gltf);
+                    
+                    // 모델의 바운딩 박스 계산하여 카메라 위치 조정
+                    const box = new THREE.Box3().setFromObject(mapModel);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    
+                    // 모델 크기에 맞게 카메라 거리 조정
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    camera.position.set(center.x, center.y + maxDim, center.z + maxDim);
+                    controls.target.copy(center);
+                    controls.update();
+                    
+                    console.log('모델 크기:', size);
+                    console.log('모델 중심:', center);
+                },
+                function(xhr) {
+                    // 로딩 진행률
+                    if (xhr.lengthComputable) {
+                        const percentComplete = (xhr.loaded / xhr.total) * 100;
+                        statusSpan.textContent = `로딩 중... ${Math.round(percentComplete)}%`;
+                    }
+                },
+                function(error) {
+                    // 로드 실패
+                    console.error('map.glb 로드 실패:', error);
+                    statusSpan.textContent = '로딩 실패';
+                    loadingDiv.innerHTML = '<div style="color: red;">map.glb 로딩에 실패했습니다.</div>';
+                }
+            );
+        }
+        
+        // 키보드 컨트롤 설정
+        function setupKeyboardControls() {
+            const keys = {
+                w: false, a: false, s: false, d: false,
+                arrowup: false, arrowdown: false, arrowleft: false, arrowright: false
+            };
+            
+            document.addEventListener('keydown', (event) => {
+                const key = event.key.toLowerCase();
+                if (key in keys) {
+                    keys[key] = true;
+                }
+                
+                // R 키로 카메라 리셋
+                if (key === 'r') {
+                    camera.position.set(0, 25, 25);
+                    camera.lookAt(0, 0, 0);
+                    controls.target.set(0, 0, 0);
+                    controls.update();
+                }
+            });
+            
+            document.addEventListener('keyup', (event) => {
+                const key = event.key.toLowerCase();
+                if (key in keys) {
+                    keys[key] = false;
+                }
+            });
+            
+            // 카메라 이동 처리
+            function updateCameraMovement() {
+                const moveSpeed = 0.5;
+                const direction = new THREE.Vector3();
+                
+                if (keys.w || keys.arrowup) {
+                    camera.getWorldDirection(direction);
+                    camera.position.addScaledVector(direction, moveSpeed);
+                }
+                if (keys.s || keys.arrowdown) {
+                    camera.getWorldDirection(direction);
+                    camera.position.addScaledVector(direction, -moveSpeed);
+                }
+                if (keys.a || keys.arrowleft) {
+                    direction.crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3()));
+                    camera.position.addScaledVector(direction, moveSpeed);
+                }
+                if (keys.d || keys.arrowright) {
+                    direction.crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3()));
+                    camera.position.addScaledVector(direction, -moveSpeed);
+                }
+                
+                controls.update();
+            }
+            
+            // 애니메이션 루프에서 키보드 입력 처리
+            setInterval(updateCameraMovement, 16); // 60fps
+        }
+        
+        // 윈도우 리사이즈 처리
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // 애니메이션 루프
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 컨트롤 업데이트
+            controls.update();
+            
+            // 카메라 위치 표시 업데이트
+            const pos = camera.position;
+            cameraPosSpan.textContent = `(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+            
+            // 렌더링
+            renderer.render(scene, camera);
+        }
+        
+        // 페이지 로드 시 초기화
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html> 
