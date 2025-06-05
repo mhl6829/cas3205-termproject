@@ -129,7 +129,7 @@ func NewGame(room *Room, gamePlayers []*Client) *Game {
 			X:  0, Y: 0, Z: 0, // Initial position
 			Yaw: 0, Pitch: 0,
 			Score:            0,
-			Asset:            "bunny.glb", // 기본 3D 모델 에셋
+			Asset:            "onion.glb", // 기본 3D 모델 에셋
 			Health:           maxPlayerHealth,
 			MaxHealth:        maxPlayerHealth,
 			IsAlive:          true,

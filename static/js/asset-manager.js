@@ -23,6 +23,7 @@ class AssetManager {
     // 로드할 에셋 목록 (실제로는 서버에서 목록을 받아올 수도 있음)
     const assetList = [
       'bunny.glb',
+      'onion.glb',
       'map.glb'
       // 추가 에셋들...
     ];

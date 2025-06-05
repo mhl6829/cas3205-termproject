@@ -127,15 +127,13 @@ class GameRenderer {
       this.scene.add(this.gameFloor);
     }
 
-    // 맵 경계선 추가
-    this.createMapBoundaries();
 
     // 기존 플레이어들의 메시 생성
     this.playerMeshes.clear();
     this.bulletMeshes.clear();
     stateManager.getAllPlayers().forEach((playerInfo) => {
       this.createOrUpdatePlayerMesh(playerInfo.id, playerInfo.color, {
-        x: 0, y: 0, z: 0, score: 0, yaw: 0, pitch: 0,
+        x: 0, y: 0, z: 0, score: 0, yaw: 0, pitch: 0
       });
     });
 
@@ -145,27 +143,6 @@ class GameRenderer {
     const gameCanvasContainer2 = document.getElementById("game-canvas-container");
     gameCanvasContainer2.addEventListener("mousemove", this.handleCanvasMouseMove.bind(this), false);
     gameCanvasContainer2.addEventListener("click", this.handleCanvasClick.bind(this), false);
-  }
-
-  createMapBoundaries() {
-    // 맵 경계선을 귀여운 핑크톤으로 표시
-    const boundaryMaterial = new THREE.LineBasicMaterial({ 
-      color: 0xF472B6, // 밝은 핑크
-      linewidth: 2
-    });
-    const points = [];
-    
-    // 경계선 그리기
-    const boundary = this.MAP_BOUNDARY;
-    points.push(new THREE.Vector3(-boundary, 0, -boundary));
-    points.push(new THREE.Vector3(boundary, 0, -boundary));
-    points.push(new THREE.Vector3(boundary, 0, boundary));
-    points.push(new THREE.Vector3(-boundary, 0, boundary));
-    points.push(new THREE.Vector3(-boundary, 0, -boundary)); // 닫기
-    
-    const boundaryGeometry = new THREE.BufferGeometry().setFromPoints(points);
-    const boundaryLine = new THREE.Line(boundaryGeometry, boundaryMaterial);
-    this.scene.add(boundaryLine);
   }
 
   handleCanvasClick(event) {
@@ -243,7 +220,7 @@ class GameRenderer {
     
     if (!playerMesh) {
       // asset 정보가 있고 로드된 경우 GLB 모델 사용, 없으면 기본 큐브 사용
-      const assetName = playerData.asset || 'bunny.glb';
+      const assetName = playerData.asset || 'onion.glb';
       const model = window.assetManager.createInstance(assetName);
       
       if (model) {
@@ -251,17 +228,19 @@ class GameRenderer {
         playerMesh = model;
         
         // 모델 크기 조정 (bunny 모델에 맞게 스케일 조정)
-        playerMesh.scale.set(1, 1, 1); // 필요에 따라 조정
+        playerMesh.scale.set(2, 2, 2); // 필요에 따라 조정
         
         // 모델의 모든 메시에 색상 적용
         playerMesh.traverse((child) => {
           if (child.isMesh) {
             // 기존 재질의 색상 변경
+            /*
             if (child.material) {
               // 재질 복제 (다른 플레이어와 재질 공유 방지)
               child.material = child.material.clone();
               child.material.color = new THREE.Color(playerColor);
             }
+              */
             
             // 그림자 설정
             child.castShadow = true;
