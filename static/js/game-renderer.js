@@ -569,7 +569,6 @@ class GameRenderer {
         if (screenPosition.z > 1 || x < 0 || x > window.innerWidth || y < 0 || y > window.innerHeight) {
           overlayData.element.style.display = "none";
         } else {
-          overlayData.element.style.display = "block";
           overlayData.element.style.left = `${x}px`;
           overlayData.element.style.top = `${y}px`;
         }
@@ -795,12 +794,17 @@ class GameRenderer {
 
   updatePlayerOverlay(playerId, playerData, playerInfo) {
     let overlayData = this.playerOverlays.get(playerId);
-    
     if (!overlayData && playerInfo) {
       overlayData = this.createPlayerOverlay(playerId, playerInfo);
     }
 
     if (!overlayData) return;
+
+    // 죽은 플레이어는 오버레이도 숨기기 (가장 먼저 체크)
+    if (!playerData.is_alive) {
+      overlayData.element.style.display = "none";
+      return;
+    }
 
     const mesh = this.playerMeshes.get(playerId);
     if (!mesh || !this.camera) {
@@ -808,13 +812,8 @@ class GameRenderer {
       return;
     }
 
-    // 죽은 플레이어는 오버레이도 숨기기
-    if (playerData.is_alive === false) {
-      overlayData.element.style.display = "none";
-      return;
-    } else {
-      overlayData.element.style.display = "block";
-    }
+    // 살아있는 플레이어는 오버레이 표시
+    overlayData.element.style.display = "block";
 
     // 3D 위치를 2D 스크린 좌표로 변환
     const meshPosition = mesh.position.clone();
