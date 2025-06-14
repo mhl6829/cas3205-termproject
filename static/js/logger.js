@@ -67,4 +67,7 @@ class Logger {
 }
 
 // 전역 인스턴스 생성
-window.logger = new Logger(); 
+const logger = new Logger();
+window.logger = logger;
+
+export { Logger, logger }; 

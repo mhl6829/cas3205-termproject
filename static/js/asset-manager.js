@@ -1,18 +1,21 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 /**
  * GLB 에셋 로딩 및 관리 모듈
  */
 class AssetManager {
   constructor() {
-    this.gltfLoader = new THREE.GLTFLoader();
+    this.gltfLoader = new GLTFLoader();
     this.loadedAssets = new Map(); // 로드된 에셋 저장
     this.totalAssets = 0;
     this.loadedCount = 0;
-    
+
     // 로딩 UI 요소들
-    this.loadingScreen = document.getElementById('loading-screen');
-    this.loadingProgressBar = document.getElementById('loading-progress-bar');
-    this.loadingStatus = document.getElementById('loading-status');
-    this.loadingPercentage = document.getElementById('loading-percentage');
+    this.loadingScreen = document.getElementById("loading-screen");
+    this.loadingProgressBar = document.getElementById("loading-progress-bar");
+    this.loadingStatus = document.getElementById("loading-status");
+    this.loadingPercentage = document.getElementById("loading-percentage");
   }
 
   /**
@@ -22,24 +25,28 @@ class AssetManager {
   async loadAllAssets() {
     // 로드할 에셋 목록 (실제로는 서버에서 목록을 받아올 수도 있음)
     const assetList = [
-      'bunny.glb',
-      'onion.glb',
-      'map.glb'
+      "paprika.glb",
+      "onion.glb",
+      "tomato.glb",
+      "potato.glb",
+      "map.glb",
       // 추가 에셋들...
     ];
 
     this.totalAssets = assetList.length;
     this.showLoadingScreen();
 
-    const loadPromises = assetList.map(assetName => this.loadAsset(assetName));
-    
+    const loadPromises = assetList.map((assetName) =>
+      this.loadAsset(assetName)
+    );
+
     try {
       await Promise.all(loadPromises);
-      console.log('모든 에셋 로드 완료!');
+      console.log("모든 에셋 로드 완료!");
       this.hideLoadingScreen();
     } catch (error) {
-      console.error('에셋 로드 중 오류 발생:', error);
-      this.loadingStatus.textContent = '에셋 로드 중 오류가 발생했습니다.';
+      console.error("에셋 로드 중 오류 발생:", error);
+      this.loadingStatus.textContent = "에셋 로드 중 오류가 발생했습니다.";
     }
   }
 
@@ -51,7 +58,7 @@ class AssetManager {
   loadAsset(assetName) {
     return new Promise((resolve, reject) => {
       const assetPath = `assets/${assetName}`;
-      
+
       this.gltfLoader.load(
         assetPath,
         (gltf) => {
@@ -59,7 +66,7 @@ class AssetManager {
           this.loadedAssets.set(assetName, gltf);
           this.loadedCount++;
           this.updateLoadingProgress();
-          
+
           console.log(`에셋 로드 완료: ${assetName}`);
           resolve(gltf);
         },
@@ -100,15 +107,19 @@ class AssetManager {
       console.error(`에셋을 찾을 수 없음: ${assetName}`);
       return null;
     }
-    
+
     // 모델 복제
-    const instance = asset.scene.clone();
-    
+    const instance = SkeletonUtils.clone(asset.scene);
+
     // 애니메이션이 있는 경우 복제
-    if (asset.animations && Array.isArray(asset.animations) && asset.animations.length > 0) {
+    if (
+      asset.animations &&
+      Array.isArray(asset.animations) &&
+      asset.animations.length > 0
+    ) {
       instance.animations = asset.animations;
     }
-    
+
     return instance;
   }
 
@@ -116,7 +127,7 @@ class AssetManager {
    * 로딩 화면 표시
    */
   showLoadingScreen() {
-    this.loadingScreen.classList.remove('hidden');
+    this.loadingScreen.classList.remove("hidden");
     this.updateLoadingProgress();
   }
 
@@ -125,7 +136,7 @@ class AssetManager {
    */
   hideLoadingScreen() {
     setTimeout(() => {
-      this.loadingScreen.classList.add('hidden');
+      this.loadingScreen.classList.add("hidden");
     }, 500); // 부드러운 전환을 위한 딜레이
   }
 
@@ -133,13 +144,14 @@ class AssetManager {
    * 로딩 진행률 업데이트
    */
   updateLoadingProgress() {
-    const progress = this.totalAssets > 0 ? (this.loadedCount / this.totalAssets) * 100 : 0;
-    
+    const progress =
+      this.totalAssets > 0 ? (this.loadedCount / this.totalAssets) * 100 : 0;
+
     this.loadingProgressBar.style.width = `${progress}%`;
     this.loadingPercentage.textContent = `${Math.round(progress)}%`;
-    
+
     if (this.loadedCount === this.totalAssets) {
-      this.loadingStatus.textContent = '로딩 완료!';
+      this.loadingStatus.textContent = "로딩 완료!";
     } else {
       this.loadingStatus.textContent = `에셋을 불러오는 중... (${this.loadedCount}/${this.totalAssets})`;
     }
@@ -147,4 +159,7 @@ class AssetManager {
 }
 
 // 전역 인스턴스 생성
-window.assetManager = new AssetManager(); 
+const assetManager = new AssetManager();
+window.assetManager = assetManager;
+
+export { AssetManager, assetManager };

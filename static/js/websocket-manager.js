@@ -13,7 +13,7 @@ class WebSocketManager {
     // console.log(`WebSocket URL: ${this.WS_URL}`);
   }
 
-  connect(nickname, color) {
+  connect(nickname, color, character) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       logger.logMessage("이미 연결되어 있거나 연결 중입니다.");
       return;
@@ -25,7 +25,7 @@ class WebSocketManager {
     this.ws.onopen = () => {
       logger.updateConnectionStatus("연결 성공!", true);
       logger.logMessage("서버에 연결되었습니다.", "success");
-      this.sendMessage("set_nickname_color", { nickname, color });
+      this.sendMessage("set_nickname_color", { nickname, color, character });
       uiManager.showMainUISection(uiManager.lobbySection);
       this.sendMessage("list_rooms", {});
     };
@@ -179,24 +179,38 @@ class WebSocketManager {
         }
         break;
 
+      case "game_init_data":
+        // 게임 초기화 데이터 수신
+        logger.logMessage("게임 초기화 데이터를 받았습니다. 로딩 중...");
+
+        // 게임 뷰로 전환
+        uiManager.enterGameView();
+        
+        // 플레이어 초기 상태 설정
+        stateManager.updatePlayersFromArray(payload.players);
+        
+        // Three.js 초기화
+        window.gameRenderer.initThreeJS();
+        
+        // 애니메이션 시작
+        window.gameRenderer.animateThreeJS();
+        
+        // 로딩 완료 메시지 표시
+        uiManager.showGameCountdown("다른 플레이어들을 기다리는 중입니다...");
+        
+        // 서버에 로딩 완료 알림
+        this.sendMessage("game_loading_complete", {
+          player_id: stateManager.getClientId()
+        });
+        break;
+
       case "game_countdown":
-        if (uiManager.mainUiContainer.classList.contains("hidden")) {
-          uiManager.showGameCountdown(payload.seconds_left > 0 ? payload.seconds_left : "!");
-        } else {
-          uiManager.enterGameView();
-          window.gameRenderer.initThreeJS();
-          window.gameRenderer.animateThreeJS();
-          uiManager.showGameCountdown(payload.seconds_left > 0 ? payload.seconds_left : "!");
-        }
+        // 카운트다운 표시 (게임 초기화는 이미 game_init_data에서 완료됨)
+        uiManager.showGameCountdown(payload.seconds_left > 0 ? payload.seconds_left : "!");
         break;
 
       case "game_started":
-        if (!window.gameRenderer.scene && !window.gameRenderer.renderer) {
-          uiManager.enterGameView();
-          window.gameRenderer.initThreeJS();
-          window.gameRenderer.animateThreeJS();
-        }
-        
+        // 게임 시작 메시지 표시 (게임 초기화는 이미 완료됨)
         uiManager.showGameCountdown("게임 시작!");
         setTimeout(() => {
           if (uiManager.gameCountdownOverlay.textContent === "게임 시작!") {
@@ -206,16 +220,14 @@ class WebSocketManager {
         break;
 
       case "game_state_update":
+        stateManager.updatePlayersFromArray(payload.players);
+        window.gameRenderer.updatePlayerMeshes();
         uiManager.updateGameTimeLeft(payload.time_left);
-        uiManager.updateHudPlayerInfo(payload.players);
-        window.gameRenderer.updatePlayerMeshes(payload.players);
-        window.gameRenderer.updateBulletMeshes(payload?.bullets);
+        uiManager.updateHudPlayerInfo();
         break;
 
       case "game_ended":
         window.gameRenderer.exitGameView();
-        // 총알들 완전히 정리
-        window.gameRenderer.updateBulletMeshes(null);
         uiManager.updateGameResultUI(payload);
         uiManager.showMainUISection(uiManager.gameResultSection);
         break;
@@ -232,4 +244,7 @@ class WebSocketManager {
 }
 
 // 전역 인스턴스 생성
-window.websocketManager = new WebSocketManager(); 
+const websocketManager = new WebSocketManager();
+window.websocketManager = websocketManager;
+
+export { WebSocketManager, websocketManager }; 

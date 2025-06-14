@@ -136,5 +136,8 @@ class InputHandler {
   }
 }
 
-// 전역 인스턴스 생성
-window.inputHandler = new InputHandler(); 
+// 전역 인스턴스 생성 (main.js에서 생성됨)
+// const inputHandler = new InputHandler();
+// window.inputHandler = inputHandler;
+
+export { InputHandler }; 

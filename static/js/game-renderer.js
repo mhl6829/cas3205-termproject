@@ -1,3 +1,6 @@
+import * as THREE from 'three';
+import { stateManager } from './state-manager.js';
+
 /**
  * Three.js 3D 게임 렌더링 모듈
  */
@@ -10,16 +13,13 @@ class GameRenderer {
     this.gameFloor = null;
     this.raycaster = null;
     this.playerMeshes = new Map();
-    this.bulletMeshes = new Map(); // 총알 메시들
     this.playerOverlays = new Map(); // 플레이어 오버레이 (체력바, 닉네임)
     this.animationFrameId = null;
     this.mouse = new THREE.Vector2();
     
     // Interpolation을 위한 변수들
     this.playerTargetPositions = new Map(); // 플레이어별 목표 위치
-    this.bulletTargetPositions = new Map(); // 총알별 목표 위치
     this.lerpSpeed = 0.2; // 플레이어 lerp 속도 (0.1 ~ 0.3 사이가 적당)
-    this.bulletLerpSpeed = 0.4; // 총알 lerp 속도 (빠르게 움직이므로 더 높게)
     
     // 맵 설정 (화면에 맞는 크기로 조정)
     this.MAP_SIZE = 40; // 40x40으로 축소
@@ -32,6 +32,15 @@ class GameRenderer {
     // 성능 최적화를 위한 시간 추적
     this.lastFrameTime = 0;
     this.clock = new THREE.Clock();
+
+    this.invincibleFlashState = new Map();
+
+
+    // 게임 환경 변수 (클라이언트 view 제어용, 수정해도 서버에 반영되지 않음)
+    this.hammerDuration = 500;
+    this.respawnDuration = 500;
+    this.deathDuration = 3000;
+    this.hitDuration = 500;
   }
 
   initThreeJS() {
@@ -39,7 +48,7 @@ class GameRenderer {
 
     this.scene = new THREE.Scene();
     // 밝고 귀여운 하늘 파스텔 배경색으로 변경
-    this.scene.background = new THREE.Color(0xF8FAFC); // 매우 밝은 블루그레이
+    this.scene.background = new THREE.Color(0x87ceeb); // 매우 밝은 블루그레이
     this.raycaster = new THREE.Raycaster();
 
     const aspect = window.innerWidth / window.innerHeight;
@@ -57,9 +66,9 @@ class GameRenderer {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace; // 또는 이전 버전: renderer.outputEncoding = THREE.sRGBEncoding;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // 다양한 톤 매핑 옵션 시도 가능 (Linear, Reinhard 등)
-    this.renderer.toneMappingExposure = 1.2; // 노출 값. 0.5 ~ 2.0 사이에서 조절해보세요.
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 2;
     
     const gameCanvasContainer = document.getElementById("game-canvas-container");
     gameCanvasContainer.innerHTML = "";
@@ -111,29 +120,15 @@ class GameRenderer {
       });
       
       this.scene.add(this.gameFloor);
-    } else {
-      // map.glb 로드 실패 시 기본 plane 사용 (fallback)
-      const floorGeometry = new THREE.PlaneGeometry(this.MAP_SIZE, this.MAP_SIZE, 10, 10);
-      const floorMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0xFCE7F3, // 밝은 핑크
-        roughness: 0.8,
-        metalness: 0.1,
-        flatShading: true
-      });
-      this.gameFloor = new THREE.Mesh(floorGeometry, floorMaterial);
-      this.gameFloor.rotation.x = -Math.PI / 2;
-      this.gameFloor.position.y = 0;
-      this.gameFloor.receiveShadow = true; // 바닥이 그림자를 받도록 설정
-      this.scene.add(this.gameFloor);
     }
 
 
     // 기존 플레이어들의 메시 생성
     this.playerMeshes.clear();
-    this.bulletMeshes.clear();
     stateManager.getAllPlayers().forEach((playerInfo) => {
-      this.createOrUpdatePlayerMesh(playerInfo.id, playerInfo.color, {
-        x: 0, y: 0, z: 0, score: 0, yaw: 0, pitch: 0
+      console.log(playerInfo.color);
+      this.createOrUpdatePlayerMesh(playerInfo.id, {
+        ...playerInfo
       });
     });
 
@@ -186,9 +181,8 @@ class GameRenderer {
           direction.x /= magnitude;
           direction.z /= magnitude;
           
-          // 서버에 망치 공격 요청 (기존: 총 발사 요청)
           window.websocketManager.sendMessage("player_action", {
-            action_type: "click", // 기존: "shoot"에서 "click"으로 변경
+            action_type: "click",
             data: {
               direction: direction,
               start_position: {
@@ -198,7 +192,7 @@ class GameRenderer {
             }
           });
           
-          // 공격 시간 기록 (클라이언트에서도 회전 제한용)
+          // 공격 시간 기록 (클라이언트 회전 제한)
           this.lastAttackTime = Date.now();
           this.hasAttackEnded = false; // 새 공격 시작
         }
@@ -214,37 +208,36 @@ class GameRenderer {
     }
   }
 
-  createOrUpdatePlayerMesh(playerId, playerColor, playerData) {
+  createOrUpdatePlayerMesh(playerId, playerData) {
     let playerMesh = this.playerMeshes.get(playerId);
-    const CUBE_SIZE = 2;
     
     if (!playerMesh) {
-      // asset 정보가 있고 로드된 경우 GLB 모델 사용, 없으면 기본 큐브 사용
-      const assetName = playerData.asset || 'onion.glb';
-      const model = window.assetManager.createInstance(assetName);
+      const model = window.assetManager.createInstance(playerData.asset);
       
       if (model) {
         // GLB 모델 사용
         playerMesh = model;
-        
-        // 모델 크기 조정 (bunny 모델에 맞게 스케일 조정)
-        playerMesh.scale.set(2, 2, 2); // 필요에 따라 조정
+        // 모델 크기 조정
+        playerMesh.scale.set(2, 2, 2);
         
         // 모델의 모든 메시에 색상 적용
         playerMesh.traverse((child) => {
           if (child.isMesh) {
-            // 기존 재질의 색상 변경
-            /*
             if (child.material) {
               // 재질 복제 (다른 플레이어와 재질 공유 방지)
               child.material = child.material.clone();
-              child.material.color = new THREE.Color(playerColor);
+              console.log(playerData.color);
+              if (child.material.name === 'hammer_head') {
+                child.material.color.setHex(parseInt(playerData.color.replace("#", "0x"))); 
+              }
             }
-              */
             
             // 그림자 설정
             child.castShadow = true;
             child.receiveShadow = true;
+
+            // 투명도 설정
+            child.material.transparent = true;
           }
         });
         
@@ -271,8 +264,6 @@ class GameRenderer {
                 playerMesh.animations[clip.name] = playerMesh.mixer.clipAction(clip);
               }
             });
-
-            console.log(playerMesh.animations)
             
             // 기본 idle 애니메이션 시작 (있는 경우)
             if (playerMesh.animations && playerMesh.animations['idle']) {
@@ -281,15 +272,6 @@ class GameRenderer {
             }
           }
         }
-      } else {
-        // GLB 로드 실패 시 기본 큐브 사용
-        const geometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
-        const material = new THREE.MeshStandardMaterial({ color: playerColor });
-        playerMesh = new THREE.Mesh(geometry, material);
-        
-        // 그림자 설정
-        playerMesh.castShadow = true;
-        playerMesh.receiveShadow = true;
       }
       
       this.scene.add(playerMesh);
@@ -299,7 +281,7 @@ class GameRenderer {
       const clampedX = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.x));
       const clampedZ = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.z));
       
-      const yPosition = model ? 0 : (CUBE_SIZE / 2 + this.gameFloor.position.y);
+      const yPosition = 0;
       
       playerMesh.position.set(
         clampedX,
@@ -308,17 +290,8 @@ class GameRenderer {
       );
     }
 
-    // 죽은 플레이어는 화면에서 숨기기 (자기 자신 포함)
-    if (playerData.is_alive === false) {
-      playerMesh.visible = false;
-      // 죽은 플레이어의 목표 위치는 업데이트하지 않음
-      // 단, 자기 자신이면 카메라는 계속 따라가도록 위치는 업데이트
-      if (playerId !== stateManager.getClientId()) {
-        return;
-      }
-    } else {
-      playerMesh.visible = true;
-    }
+    // 플레이어 표시
+    playerMesh.visible = true;
 
     // 애니메이션 클립 처리
     this.handlePlayerAnimation(playerMesh, playerData.current_animation);
@@ -326,10 +299,7 @@ class GameRenderer {
     // 플레이어 목표 위치를 맵 경계 내로 제한하여 저장
     const clampedX = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.x));
     const clampedZ = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.z));
-    
-    // GLB 모델인지 큐브인지에 따라 Y 위치 조정
-    const isGLBModel = playerData.asset && window.assetManager.getAsset(playerData.asset);
-    const yPosition = isGLBModel ? 0 : (CUBE_SIZE / 2 + this.gameFloor.position.y);
+    const yPosition = 0
     
     // 목표 위치 저장 (lerp에서 사용)
     this.playerTargetPositions.set(playerId, {
@@ -346,104 +316,34 @@ class GameRenderer {
       return;
     }
 
+    // 진행중인 애니메이션과 같으면
     if (playerMesh.currentAnimationName === animationName) {
-      return;
-    }
-
-    // idle시 일단 정지
-    if (playerMesh.currentAction && animationName === 'idle') {
-      playerMesh.currentAction.stop();
-      playerMesh.currentAnimationName = 'idle';
       return;
     }
 
     // 이전 애니메이션 정지
     if (playerMesh.currentAction) {
-      playerMesh.currentAction.fadeOut(0.1); // 더 빠른 전환
+      playerMesh.currentAction.fadeOut(0.2);
     }
 
     // 새 애니메이션 재생
     if (playerMesh.animations[animationName]) {
       playerMesh.currentAction = playerMesh.animations[animationName];
-      playerMesh.currentAction.reset().fadeIn(0.1).play(); // 더 빠른 전환
+      playerMesh.currentAction.reset().fadeIn(0.2).play();
       playerMesh.currentAnimationName = animationName;
       
       // 특정 애니메이션은 한 번만 재생
-      if (['hammer_attack', 'death', 'respawn'].includes(animationName)) {
+      if (['hammer_attack', 'death', 'respawn', 'hit'].includes(animationName)) {
         playerMesh.currentAction.setLoop(THREE.LoopOnce);
-        playerMesh.currentAction.clampWhenFinished = false; // 끝나면 초기화되도록 변경
-        
-        // 애니메이션 종료 이벤트 리스너 추가
-        const onFinished = () => {
-          playerMesh.currentAnimationName = null; // 애니메이션 이름 초기화
-          playerMesh.currentAction.getMixer().removeEventListener('finished', onFinished);
-          
-          // idle 애니메이션으로 전환 (있는 경우)
-          if (playerMesh.animations['idle'] && animationName !== 'death') {
-            playerMesh.currentAction = playerMesh.animations['idle'];
-            playerMesh.currentAction.reset().play();
-            playerMesh.currentAnimationName = 'idle';
-            playerMesh.currentAction.setLoop(THREE.LoopRepeat);
-          }
-        };
-        
-        playerMesh.currentAction.getMixer().addEventListener('finished', onFinished);
+        playerMesh.currentAction.clampWhenFinished = true;
       } else {
         playerMesh.currentAction.setLoop(THREE.LoopRepeat);
       }
-      
-      console.log(`Playing animation: ${animationName} for player`);
     }
   }
 
-  createOrUpdateBulletMesh(bulletId, bulletData) {
-    let bulletMesh = this.bulletMeshes.get(bulletId);
-    
-    if (!bulletMesh) {
-      // 총알을 sphere로 생성
-      const geometry = new THREE.SphereGeometry(0.5, 16, 16);
-      const bulletColor = bulletData.color || '#FFFFFF'; // 서버에서 오는 색상 사용, 기본값은 흰색
-      const material = new THREE.MeshStandardMaterial({ 
-        color: bulletColor,
-      });
-      bulletMesh = new THREE.Mesh(geometry, material);
-      
-      // 총알도 그림자 생성
-      bulletMesh.castShadow = true;
-      
-      this.scene.add(bulletMesh);
-      this.bulletMeshes.set(bulletId, bulletMesh);
-      
-      // 초기 위치 설정 (첫 생성 시에는 바로 설정)
-      bulletMesh.position.set(
-        bulletData.x,
-        1, // 지면 위 1 단위
-        bulletData.z
-      );
-    }
-
-    // 총알 목표 위치 저장 (lerp에서 사용)
-    this.bulletTargetPositions.set(bulletId, {
-      x: bulletData.x,
-      y: 1, // 지면 위 1 단위
-      z: bulletData.z
-    });
-  }
-
-  removeBulletMesh(bulletId) {
-    const bulletMesh = this.bulletMeshes.get(bulletId);
-    if (bulletMesh) {
-      this.scene.remove(bulletMesh);
-      if (bulletMesh.geometry) bulletMesh.geometry.dispose();
-      if (bulletMesh.material) bulletMesh.material.dispose();
-      this.bulletMeshes.delete(bulletId);
-      
-      // 총알 목표 위치 데이터도 제거
-      this.bulletTargetPositions.delete(bulletId);
-    }
-  }
-
-  updatePlayerMeshes(playersData) {
+  updatePlayerMeshes() {
+    const playersData = Array.from(stateManager.getAllPlayers().values());
     const currentPlayerIdsFromServer = new Set(playersData.map((p) => p.id));
     
     // 서버에서 오지 않은 플레이어 메시 제거
@@ -472,38 +372,8 @@ class GameRenderer {
     // 플레이어 메시 업데이트
     playersData.forEach((pData) => {
       const playerInfo = stateManager.getPlayer(pData.id);
-      if (playerInfo) {
-        this.createOrUpdatePlayerMesh(pData.id, playerInfo.color, pData);
-        this.updatePlayerOverlay(pData.id, pData, playerInfo);
-      } else {
-        // 플레이어 정보가 아직 없을 경우 기본 색상으로 생성
-        this.createOrUpdatePlayerMesh(pData.id, "#CCCCCC", pData);
-        this.updatePlayerOverlay(pData.id, pData, { nickname: pData.id.substring(0, 6), color: "#CCCCCC" });
-      }
-    });
-  }
-
-  updateBulletMeshes(bulletsData) {
-    if (!bulletsData) {
-      // 총알 데이터가 없으면 모든 총알 제거
-      this.bulletMeshes.forEach((mesh, id) => {
-        this.removeBulletMesh(id);
-      });
-      return;
-    }
-    
-    const currentBulletIdsFromServer = new Set(bulletsData.map((b) => b.id));
-    
-    // 서버에서 오지 않은 총알 메시 제거
-    this.bulletMeshes.forEach((mesh, id) => {
-      if (!currentBulletIdsFromServer.has(id)) {
-        this.removeBulletMesh(id);
-      }
-    });
-
-    // 총알 메시 업데이트
-    bulletsData.forEach((bData) => {
-      this.createOrUpdateBulletMesh(bData.id, bData);
+      this.createOrUpdatePlayerMesh(pData.id, pData);
+      this.updatePlayerOverlay(pData.id, pData, playerInfo);
     });
   }
 
@@ -513,67 +383,82 @@ class GameRenderer {
     if (!this.renderer || !this.scene || !this.camera) return;
 
     const deltaTime = this.clock.getDelta();
-    
+    const flashInterval = 0.25; // 0.25초 깜빡임 간격
+
     // 공격 종료 체크
     this.checkAttackEnd();
 
-    // 플레이어 위치 interpolation (lerp) 적용
-    this.playerMeshes.forEach((mesh, playerId) => {
-      const targetPos = this.playerTargetPositions.get(playerId);
+    // 모든 플레이어에 대한 업데이트를 한 번의 루프로 처리
+    stateManager.getAllPlayers().forEach((player) => {
+      const mesh = this.playerMeshes.get(player.id);
+      if (!mesh) return;
+
+      // 1. 플레이어 위치 및 회전 Lerp 적용
+      const targetPos = this.playerTargetPositions.get(player.id);
       if (targetPos) {
-        // 위치 lerp
-        mesh.position.x = this.lerp(mesh.position.x, targetPos.x, this.lerpSpeed);
-        mesh.position.y = this.lerp(mesh.position.y, targetPos.y, this.lerpSpeed);
-        mesh.position.z = this.lerp(mesh.position.z, targetPos.z, this.lerpSpeed);
+        mesh.position.lerp(targetPos, this.lerpSpeed);
         
-        // 회전 lerp (자신의 플레이어는 마우스 입력을 즉시 반영)
-        if (playerId === stateManager.getClientId()) {
-          mesh.rotation.y = stateManager.getPlayerYaw();
-        } else {
-          mesh.rotation.y = this.lerpAngle(mesh.rotation.y, targetPos.yaw, this.lerpSpeed);
-        }
+        const targetYaw = (player.id === stateManager.getClientId()) 
+                          ? stateManager.getPlayerYaw() 
+                          : targetPos.yaw;
+        mesh.rotation.y = this.lerpAngle(mesh.rotation.y, targetYaw, this.lerpSpeed);
       }
       
-      // 애니메이션 믹서 업데이트 (끊김 방지를 위해 deltaTime 조정)
-      if (mesh.mixer && typeof mesh.mixer.update === 'function') {
-        // deltaTime을 안정적인 범위로 제한 (끊김 방지)
-        const clampedDeltaTime = Math.min(Math.max(deltaTime, 0.001), 0.033); // 1ms ~ 33ms (30fps 최소)
+      // 2. 애니메이션 믹서 업데이트
+      if (mesh.mixer) {
+        const clampedDeltaTime = Math.min(deltaTime, 0.033);
         mesh.mixer.update(clampedDeltaTime);
       }
-    });
 
-    // 총알 위치 interpolation (lerp) 적용
-    this.bulletMeshes.forEach((mesh, bulletId) => {
-      const targetPos = this.bulletTargetPositions.get(bulletId);
-      if (targetPos) {
-        // 총알 위치 lerp (빠른 속도로)
-        mesh.position.x = this.lerp(mesh.position.x, targetPos.x, this.bulletLerpSpeed);
-        mesh.position.y = this.lerp(mesh.position.y, targetPos.y, this.bulletLerpSpeed);
-        mesh.position.z = this.lerp(mesh.position.z, targetPos.z, this.bulletLerpSpeed);
+      // 3. 무적 상태 깜빡임 효과 처리
+      // 플레이어별 깜빡임 상태를 가져오거나 초기화
+      if (!this.invincibleFlashState.has(player.id)) {
+        this.invincibleFlashState.set(player.id, { timer: 0, isWhite: false });
       }
+      const flashState = this.invincibleFlashState.get(player.id);
+      let targetEmissive = 0x000000; // 기본 emissive 색상
+
+      if (player.is_invincible) {
+        flashState.timer += deltaTime;
+        if (flashState.timer >= flashInterval) {
+          flashState.isWhite = !flashState.isWhite; // 상태 반전
+          flashState.timer %= flashInterval;      // 타이머를 간격 내로 유지
+        }
+        if (flashState.isWhite) {
+          targetEmissive = 0x444444;
+        }
+      } else {
+        // 무적이 아니면 상태 초기화
+        flashState.timer = 0;
+        flashState.isWhite = false;
+      }
+      
+      // 재질(material) 업데이트s
+      mesh.traverse((child) => {
+        if (child.isMesh && child.material) {
+          // emissive 색상이 목표 색상과 다를 때만 업데이트
+          if (child.material.emissive.getHex() !== targetEmissive) {
+            child.material.emissive.setHex(targetEmissive);
+          }
+        }
+      });
     });
 
+    
     // 플레이어 오버레이 위치 업데이트
     this.playerOverlays.forEach((overlayData, playerId) => {
       const mesh = this.playerMeshes.get(playerId);
       if (mesh && this.camera) {
-        // 3D 위치를 2D 스크린 좌표로 변환
         const meshPosition = mesh.position.clone();
-        meshPosition.y += 8; // 캐릭터 머리 위로 올리기
-
+        meshPosition.y += 8; // 캐릭터 머리 위
         const screenPosition = meshPosition.project(this.camera);
         const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
         const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
-
-        // 화면 범위 체크
-        if (screenPosition.z > 1 || x < 0 || x > window.innerWidth || y < 0 || y > window.innerHeight) {
-          overlayData.element.style.display = "none";
-        } else {
-          overlayData.element.style.left = `${x}px`;
-          overlayData.element.style.top = `${y}px`;
-        }
+        overlayData.element.style.left = `${x}px`;
+        overlayData.element.style.top = `${y}px`;
       }
     });
+    
 
     this.renderer.render(this.scene, this.camera);
   }
@@ -608,7 +493,7 @@ class GameRenderer {
 
       // 공격 중에는 회전하지 않음 (1초간)
       const now = Date.now();
-      if (now - this.lastAttackTime < 1000) {
+      if (now - this.lastAttackTime < 500) {
         // 커스텀 크로스헤어 위치만 업데이트
         const customCrosshair = document.getElementById("custom-crosshair");
         customCrosshair.style.left = `${event.clientX}px`;
@@ -691,15 +576,6 @@ class GameRenderer {
       this.playerMeshes.clear();
       this.playerTargetPositions.clear(); // 목표 위치 데이터도 정리
 
-      // 총알 메시 정리
-      this.bulletMeshes.forEach((mesh) => {
-        this.scene.remove(mesh);
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) mesh.material.dispose();
-      });
-      this.bulletMeshes.clear();
-      this.bulletTargetPositions.clear(); // 총알 목표 위치 데이터도 정리
-
       // 플레이어 오버레이 정리
       this.playerOverlays.forEach((overlayData) => {
         overlayData.element.remove();
@@ -741,7 +617,7 @@ class GameRenderer {
 
   checkAttackEnd() {
     const now = Date.now();
-    const attackDuration = 1000; // 1초
+    const attackDuration = 500; // 1초
     
     // 공격이 진행 중이고 이제 끝났을 때
     if (this.lastAttackTime > 0 && !this.hasAttackEnded && now - this.lastAttackTime >= attackDuration) {
@@ -800,41 +676,8 @@ class GameRenderer {
 
     if (!overlayData) return;
 
-    // 죽은 플레이어는 오버레이도 숨기기 (가장 먼저 체크)
-    if (!playerData.is_alive) {
-      overlayData.element.style.display = "none";
-      return;
-    }
-
-    const mesh = this.playerMeshes.get(playerId);
-    if (!mesh || !this.camera) {
-      overlayData.element.style.display = "none";
-      return;
-    }
-
-    // 살아있는 플레이어는 오버레이 표시
-    overlayData.element.style.display = "block";
-
-    // 3D 위치를 2D 스크린 좌표로 변환
-    const meshPosition = mesh.position.clone();
-    meshPosition.y += 3; // 캐릭터 머리 위로 올리기
-
-    const screenPosition = meshPosition.project(this.camera);
-    const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
-    const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
-
-    // 화면 범위 체크
-    if (screenPosition.z > 1 || x < 0 || x > window.innerWidth || y < 0 || y > window.innerHeight) {
-      overlayData.element.style.display = "none";
-      return;
-    }
-
-    // 위치 업데이트
-    overlayData.element.style.left = `${x}px`;
-    overlayData.element.style.top = `${y}px`;
-
     // 체력바 업데이트
-    const health = playerData.health || 3;
+    const health = playerData.health;
     const maxHealth = playerData.max_health || 3;
     const healthPercentage = maxHealth > 0 ? (health / maxHealth) * 100 : 0;
 
@@ -847,6 +690,9 @@ class GameRenderer {
     } else if (healthPercentage <= 66) {
       overlayData.healthFill.classList.add("medium");
     }
+
+    // 살아있는 플레이어는 오버레이 표시
+    overlayData.element.style.display = "block";
   }
 
   removePlayerOverlay(playerId) {
@@ -859,4 +705,7 @@ class GameRenderer {
 }
 
 // 전역 인스턴스 생성
-window.gameRenderer = new GameRenderer(); 
+const gameRenderer = new GameRenderer();
+window.gameRenderer = gameRenderer;
+
+export { GameRenderer, gameRenderer }; 

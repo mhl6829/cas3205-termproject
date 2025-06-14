@@ -11,10 +11,9 @@ import (
 type RoomState string
 
 const (
-	RoomStateWaiting   RoomState = "waiting"   // 플레이어 대기 중
-	RoomStateCountdown RoomState = "countdown" // 게임 시작 카운트다운 중
-	RoomStatePlaying   RoomState = "playing"   // 게임 진행 중
-	RoomStateFinished  RoomState = "finished"  // 게임 종료 후 결과 표시 또는 대기방 복귀 준비
+	RoomStateWaiting  RoomState = "waiting"  // 플레이어 대기 중
+	RoomStatePlaying  RoomState = "playing"  // 게임 진행 중
+	RoomStateFinished RoomState = "finished" // 게임 종료 후 결과 표시 또는 대기방 복귀 준비
 )
 
 const (
@@ -24,14 +23,15 @@ const (
 
 // Room은 게임 세션을 관리합니다.
 type Room struct {
-	id         string
-	server     *Server
-	owner      *Client
-	clients    map[*Client]bool
-	maxPlayers int
-	state      RoomState
-	game       *Game
-	mutex      sync.RWMutex // clients 맵 및 기타 공유 데이터 접근 제어
+	id             string
+	server         *Server
+	owner          *Client
+	clients        map[*Client]bool
+	maxPlayers     int
+	state          RoomState
+	game           *Game
+	mutex          sync.RWMutex    // clients 맵 및 기타 공유 데이터 접근 제어
+	loadingClients map[string]bool // 게임 로딩 완료 상태 추적 (clientID -> 완료 여부)
 
 	// 채널
 	register      chan *Client  // 방에 참여하는 클라이언트
@@ -51,18 +51,19 @@ func NewRoom(id string, owner *Client, server *Server, maxPlayers int) *Room {
 	}
 
 	room := &Room{
-		id:            id,
-		server:        server,
-		owner:         owner, // 방 생성자가 초기 방장
-		clients:       make(map[*Client]bool),
-		maxPlayers:    maxPlayers,
-		state:         RoomStateWaiting,
-		game:          nil, // 게임은 시작 시점에 생성
-		register:      make(chan *Client, 1),
-		unregister:    make(chan *Client, 1),
-		clientMessage: make(chan *Message, 1), // 버퍼를 줄 수도 있음
-		broadcast:     make(chan []byte, 256),
-		stop:          make(chan struct{}, 1),
+		id:             id,
+		server:         server,
+		owner:          owner, // 방 생성자가 초기 방장
+		clients:        make(map[*Client]bool),
+		maxPlayers:     maxPlayers,
+		state:          RoomStateWaiting,
+		game:           nil, // 게임은 시작 시점에 생성
+		register:       make(chan *Client, 1),
+		unregister:     make(chan *Client, 1),
+		clientMessage:  make(chan *Message, 1), // 버퍼를 줄 수도 있음
+		broadcast:      make(chan []byte, 256),
+		stop:           make(chan struct{}, 1),
+		loadingClients: make(map[string]bool),
 	}
 
 	// 방장도 clients 맵에 추가
@@ -237,6 +238,8 @@ func (r *Room) handleClientMessage(msg *Message) {
 
 		r.mutex.Unlock()       // unregister 처리 전에 client.room을 nil로 설정
 		r.unregister <- client // unregister 채널을 통해 표준 절차로 처리
+	case MessageTypeGameLoadingComplete:
+		r.handleGameLoadingComplete(msg.Sender)
 	default:
 		log.Printf("Room %s: Received unhandled message type %s from %s (Nick: %s)", r.id, msg.Type, msg.Sender.id, msg.Sender.nickname)
 	}
@@ -301,11 +304,17 @@ func (r *Room) handleStartGameRequest(client *Client) {
 	}
 
 	log.Printf("Room %s: All players ready. Owner %s (Nick: %s) started the game.", r.id, client.id, client.nickname)
-	r.state = RoomStateCountdown
+	r.state = RoomStatePlaying
+
+	// 로딩 상태 초기화
+	r.loadingClients = make(map[string]bool)
+	for c := range r.clients {
+		r.loadingClients[c.id] = false
+	}
+
 	r.mutex.Unlock() // Game 객체 생성 및 시작 전에 Lock 해제
 
-	// Game 객체 생성 및 시작
-	// r.game = NewGame(r, r.getGamePlayers()) // getGamePlayers는 []*Client를 반환
+	// Game 객체 생성
 	playerClients := make([]*Client, 0, len(r.clients))
 	r.mutex.RLock() // clients 맵 읽기 위해 RLock
 	for c := range r.clients {
@@ -314,12 +323,17 @@ func (r *Room) handleStartGameRequest(client *Client) {
 	r.mutex.RUnlock()
 
 	r.game = NewGame(r, playerClients) // game.go 에 NewGame 정의 예정
-	go r.game.Start()                  // 게임 로직은 자체 고루틴에서 실행될 수 있음 (카운트다운, 게임루프 등)
+
+	// 게임 초기화 데이터를 모든 클라이언트에게 전송
+	r.sendGameInitData()
 
 	// 방 상태 변경 브로드캐스트
 	r.broadcastRoomState()
 	// 서버에 방 상태 변경 알림
 	r.server.broadcastRoomUpdate()
+
+	// 게임 준비 상태 시작
+	r.game.Ready()
 }
 
 // broadcastToClients는 방 안의 모든 클라이언트에게 메시지를 전송합니다.
@@ -416,7 +430,7 @@ func (r *Room) getPlayerInfo(client *Client) PlayerInfo {
 }
 
 // broadcastRoomState는 현재 방의 상태 (예: Waiting, Countdown, Playing, Finished)와
-// 플레이어 목록 (레디 상태 포함)을 방의 모든 클라이언트에게 알립니다.
+// 플레이어 목록 (레디 상태 포함)을 방의 모든 클라이언트에게 알립니다
 func (r *Room) broadcastRoomState() {
 	r.mutex.RLock()
 
@@ -442,7 +456,7 @@ func (r *Room) broadcastRoomState() {
 func (r *Room) cleanupRoomResources() {
 	log.Printf("Room %s: Cleaning up resources...", r.id)
 	// 게임이 진행 중이었다면 게임 중지
-	if r.game != nil && r.game.isRunning {
+	if r.game != nil && r.game.isReady {
 		r.game.StopGame("room_closed") // 게임에 종료 사유 전달
 	}
 	r.game = nil // 게임 객체 참조 해제
@@ -478,7 +492,8 @@ func (r *Room) cleanupRoomResources() {
 func (r *Room) PrepareForNewGame() {
 	r.mutex.Lock()
 	r.state = RoomStateWaiting
-	r.game = nil // 이전 게임 객체 참조 해제
+	r.game = nil                             // 이전 게임 객체 참조 해제
+	r.loadingClients = make(map[string]bool) // 로딩 상태 초기화
 
 	log.Printf("Room %s: Preparing for new game. Resetting player ready states.", r.id)
 	for client := range r.clients {
@@ -513,4 +528,71 @@ func (r *Room) PrepareForNewGame() {
 
 	r.broadcastRoomState() // 변경된 방 상태와 플레이어 정보 (레디 해제) 브로드캐스트
 	r.server.broadcastRoomUpdate()
+}
+
+// sendGameInitData는 모든 클라이언트에게 게임 초기화 데이터를 전송합니다.
+func (r *Room) sendGameInitData() {
+	if r.game == nil {
+		log.Printf("Room %s: Cannot send game init data, game is nil", r.id)
+		return
+	}
+
+	// 플레이어 초기 상태 정보 구성
+	playerStates := make([]PlayerStateInfo, 0, len(r.game.players))
+	for client, playerState := range r.game.players {
+		playerStates = append(playerStates, PlayerStateInfo{
+			ID:        client.id,
+			Color:     playerState.Color,
+			X:         playerState.X,
+			Y:         playerState.Y,
+			Z:         playerState.Z,
+			Yaw:       playerState.Yaw,
+			Pitch:     playerState.Pitch,
+			Score:     playerState.Score,
+			Asset:     playerState.Asset,
+			Health:    playerState.Health,
+			MaxHealth: playerState.MaxHealth,
+			IsAlive:   playerState.IsAlive,
+		})
+	}
+
+	// 게임 초기화 데이터 페이로드
+	initPayload := GameInitDataPayload{
+		Players: playerStates,
+		// MapData와 GameConfig는 필요시 추가
+	}
+
+	msg := Message{Type: MessageTypeGameInitData, Payload: initPayload}
+	r.broadcastMessage(msg, nil)
+	log.Printf("Room %s: Sent game initialization data to all clients", r.id)
+}
+
+// handleGameLoadingComplete는 클라이언트의 게임 로딩 완료 메시지를 처리합니다.
+func (r *Room) handleGameLoadingComplete(client *Client) {
+	r.mutex.Lock()
+
+	// 로딩 완료 상태 업데이트
+	if _, exists := r.loadingClients[client.id]; exists {
+		r.loadingClients[client.id] = true
+		log.Printf("Room %s: Client %s (Nick: %s) completed game loading", r.id, client.id, client.nickname)
+	}
+
+	// 모든 클라이언트가 로딩을 완료했는지 확인
+	allLoaded := true
+	for _, loaded := range r.loadingClients {
+		if !loaded {
+			allLoaded = false
+			break
+		}
+	}
+
+	r.mutex.Unlock()
+
+	// 모든 클라이언트가 로딩을 완료했다면 게임 시작
+	if allLoaded {
+		log.Printf("Room %s: All clients completed loading, starting game countdown", r.id)
+		if r.game != nil {
+			go r.game.Start() // 게임 시작 (카운트다운 포함)
+		}
+	}
 }

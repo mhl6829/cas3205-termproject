@@ -33,6 +33,7 @@ class UIManager {
     // 폼 요소들
     this.nicknameInput = document.getElementById("nickname");
     this.colorInput = document.getElementById("color");
+    this.characterInput = document.getElementById("character");
     this.joinRoomCodeInput = document.getElementById("join-room-code");
     
     // 버튼들
@@ -57,6 +58,8 @@ class UIManager {
   initEventListeners() {
     // 색상 선택 버튼 이벤트 리스너 등록
     this.setupColorSelection();
+    // 캐릭터 선택 버튼 이벤트 리스너 등록
+    this.setupCharacterSelection();
 
     // 프로필 설정 버튼
     this.setProfileButton.addEventListener("click", () => {
@@ -68,8 +71,16 @@ class UIManager {
         alert("색상을 선택해주세요.");
         return;
       }
+      if (!this.characterInput.value.trim()) {
+        alert("캐릭터를 선택해주세요.");
+        return;
+      }
+      // 캐릭터 미리보기 정리
+      if (window.characterPreview) {
+        window.characterPreview.dispose();
+      }
       // WebSocket 연결 시작 - 다른 모듈에서 처리
-      window.websocketManager.connect(this.nicknameInput.value, this.colorInput.value);
+      window.websocketManager.connect(this.nicknameInput.value, this.colorInput.value, this.characterInput.value);
     });
 
     // 로비 버튼들
@@ -299,7 +310,7 @@ class UIManager {
     this.gameResultDisplay.appendChild(scoreList);
   }
 
-  updateHudPlayerInfo(playersPayload) {
+  updateHudPlayerInfo() {
     // 플레이어 점수 목록만 표시 (체력바는 캐릭터 머리 위로 이동)
     const playerListContainer = this.gameHudTopLeft.querySelector('.player-scores-list') || document.createElement("div");
     if (!this.gameHudTopLeft.querySelector('.player-scores-list')) {
@@ -309,6 +320,8 @@ class UIManager {
     
     playerListContainer.innerHTML = "";
     const ul = document.createElement("ul");
+
+    const playersPayload = Array.from(stateManager.getAllPlayers().values());
     
     playersPayload.sort((a, b) => b.score == a.score ? b.id - a.id : b.score - a.score);
     
@@ -414,13 +427,11 @@ class UIManager {
       button.addEventListener('click', () => {
         // 모든 색상 버튼의 선택 상태 제거
         document.querySelectorAll('.color-option').forEach(btn => {
-          btn.classList.remove('border-white', 'border-4');
-          btn.classList.add('border-pink-200', 'border-2');
+          btn.classList.remove('selected');
         });
         
         // 클릭된 버튼을 선택 상태로 변경
-        button.classList.remove('border-pink-200', 'border-2');
-        button.classList.add('border-white', 'border-4');
+        button.classList.add('selected');
         
         // hidden input에 색상 값 설정
         this.colorInput.value = button.dataset.color;
@@ -430,11 +441,37 @@ class UIManager {
     // 기본 색상 선택 상태 설정 (새로운 기본 색상으로 변경)
     const defaultColorButton = document.querySelector('.color-option[data-color="#FF6B9D"]');
     if (defaultColorButton) {
-      defaultColorButton.classList.remove('border-pink-200', 'border-2');
-      defaultColorButton.classList.add('border-white', 'border-4');
+      defaultColorButton.classList.add('selected');
+    }
+  }
+
+  setupCharacterSelection() {
+    // 캐릭터 선택 버튼들
+    document.querySelectorAll('.character-option').forEach(button => {
+      button.addEventListener('click', () => {
+        // 모든 캐릭터 버튼의 선택 상태 제거
+        document.querySelectorAll('.character-option').forEach(btn => {
+          btn.classList.remove('selected');
+        });
+        
+        // 클릭된 버튼을 선택 상태로 변경
+        button.classList.add('selected');
+        
+        // hidden input에 캐릭터 값 설정
+        this.characterInput.value = button.dataset.character;
+      });
+    });
+
+    // 기본 캐릭터 선택 상태 설정
+    const defaultCharacterButton = document.querySelector('.character-option[data-character="onion"]');
+    if (defaultCharacterButton) {
+      defaultCharacterButton.classList.add('selected');
     }
   }
 }
 
 // 전역 인스턴스 생성
-window.uiManager = new UIManager(); 
+const uiManager = new UIManager();
+window.uiManager = uiManager;
+
+export { UIManager, uiManager }; 

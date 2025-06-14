@@ -143,4 +143,7 @@ class StateManager {
 }
 
 // 전역 인스턴스 생성
-window.stateManager = new StateManager(); 
+const stateManager = new StateManager();
+window.stateManager = stateManager;
+
+export { StateManager, stateManager }; 

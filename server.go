@@ -225,10 +225,6 @@ func (s *Server) sendRoomListToClient(client *Client) {
 		roomState := room.state
 		room.mutex.RUnlock()
 
-		if roomState == RoomStatePlaying || roomState == RoomStateCountdown {
-			// 게임 중이거나 카운트다운 중인 방은 목록에 표시하되, 참여 불가 표시를 하거나 필터링 가능
-		}
-
 		roomListItems = append(roomListItems, RoomListItem{
 			ID:             room.id,
 			CurrentPlayers: currentPlayers,
@@ -354,9 +350,10 @@ func (s *Server) handleSetNicknameColor(msg *Message) {
 	oldNickname := client.nickname
 	client.nickname = payload.Nickname
 	client.color = payload.Color
+	client.character = payload.Character
 	s.mutex.Unlock() // Client 정보 변경 후 Lock 해제
 
-	log.Printf("Server: Client %s updated profile. Nickname: %s -> %s, Color: %s", client.id, oldNickname, client.nickname, client.color)
+	log.Printf("Server: Client %s updated profile. Nickname: %s -> %s, Color: %s, Character: %s", client.id, oldNickname, client.nickname, client.color, client.character)
 
 	// 만약 클라이언트가 방에 있다면, 방 내부 다른 클라이언트들에게도 이 변경사항을 알려야 함.
 	// 이는 Room의 책임으로 넘기거나, 여기서 직접 Room에 알릴 수 있음.

@@ -27,11 +27,12 @@ type Client struct {
 	send   chan []byte // 클라이언트에게 보낼 메시지를 담는 버퍼 채널
 
 	// 방 관련 정보 (Client가 직접 Room을 참조하도록 변경)
-	room     *Room
-	nickname string
-	color    string
-	isReady  bool
-	isOwner  bool
+	room      *Room
+	nickname  string
+	color     string
+	character string
+	isReady   bool
+	isOwner   bool
 
 	// 게임 내 상태 (Game 객체에서 주로 관리되지만, Client에서도 참조 가능)
 	// playerState *PlayerState // 필요시 PlayerState 구조체 정의 후 사용
@@ -48,8 +49,9 @@ func NewClient(server *Server, conn *websocket.Conn, clientID string) *Client {
 		conn:   conn,
 		send:   make(chan []byte, 256), // 버퍼 크기 조절 가능
 		// 초기값 설정
-		nickname: defaultClientID, // utils.go 에 정의된 상수
-		color:    "#FFFFFF",       // 기본 색상
+		nickname:  defaultClientID, // utils.go 에 정의된 상수
+		color:     "#FFFFFF",       // 기본 색상
+		character: "onion",         // 기본 캐릭터
 	}
 }
 
@@ -87,7 +89,7 @@ func (c *Client) readPump() {
 			break // 루프 종료 -> defer 실행
 		}
 
-		log.Printf("Received raw message from %s: %s", c.id, string(rawMessage))
+		// log.Printf("Received raw message from %s: %s", c.id, string(rawMessage))
 
 		var msg Message
 		if err := json.Unmarshal(rawMessage, &msg); err != nil {
@@ -107,11 +109,7 @@ func (c *Client) readPump() {
 		// 1. 초기 설정 (닉네임, 색상)
 		// 2. 방 관련 요청 (생성, 참가, 나가기, 레디 등) -> Room 또는 Server의 방 관리 로직으로
 		// 3. 게임 중 액션 -> 현재 속한 Room의 Game 객체로
-
-		if c.room != nil && c.room.game != nil && c.room.game.isRunning &&
-			(msg.Type == MessageTypePlayerAction) {
-			// 게임이 진행 중이고, 플레이어 액션 메시지라면 Room의 게임 메시지 처리 채널로 전달
-
+		if c.room != nil && c.room.game != nil && (msg.Type == MessageTypeGameLoadingComplete || msg.Type == MessageTypePlayerAction) {
 			c.room.clientMessage <- &msg // 포인터로 전달
 		} else if msg.Type == MessageTypeCreateRoom ||
 			msg.Type == MessageTypeJoinRoom ||

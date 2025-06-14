@@ -7,14 +7,15 @@ type MessageType string
 
 const (
 	// 클라이언트 -> 서버 메시지 타입
-	MessageTypeSetNicknameColor MessageType = "set_nickname_color"
-	MessageTypeCreateRoom       MessageType = "create_room"
-	MessageTypeJoinRoom         MessageType = "join_room"
-	MessageTypeListRooms        MessageType = "list_rooms"
-	MessageTypeLeaveRoom        MessageType = "leave_room"
-	MessageTypeReadyToggle      MessageType = "ready_toggle"
-	MessageTypeStartGame        MessageType = "start_game"    // 방장만 전송
-	MessageTypePlayerAction     MessageType = "player_action" // 게임 중 클라이언트 입력
+	MessageTypeSetNicknameColor    MessageType = "set_nickname_color"
+	MessageTypeCreateRoom          MessageType = "create_room"
+	MessageTypeJoinRoom            MessageType = "join_room"
+	MessageTypeListRooms           MessageType = "list_rooms"
+	MessageTypeLeaveRoom           MessageType = "leave_room"
+	MessageTypeReadyToggle         MessageType = "ready_toggle"
+	MessageTypeStartGame           MessageType = "start_game"            // 방장만 전송
+	MessageTypePlayerAction        MessageType = "player_action"         // 게임 중 클라이언트 입력
+	MessageTypeGameLoadingComplete MessageType = "game_loading_complete" // 클라이언트가 게임 로딩 완료 알림
 
 	// 서버 -> 클라이언트 메시지 타입
 	MessageTypeError              MessageType = "error"
@@ -25,6 +26,7 @@ const (
 	MessageTypePlayerJoined       MessageType = "player_joined" // 기존 방 멤버에게 새 멤버 알림
 	MessageTypePlayerLeft         MessageType = "player_left"
 	MessageTypePlayerReadyChanged MessageType = "player_ready_changed"
+	MessageTypeGameInitData       MessageType = "game_init_data" // 게임 시작 시 초기화 데이터
 	MessageTypeGameCountdown      MessageType = "game_countdown"
 	MessageTypeGameStarted        MessageType = "game_started"
 	MessageTypeGameStateUpdate    MessageType = "game_state_update"
@@ -43,8 +45,9 @@ type Message struct {
 
 // SetNicknameColorPayload는 닉네임과 색상 설정을 위한 페이로드입니다.
 type SetNicknameColorPayload struct {
-	Nickname string `json:"nickname"`
-	Color    string `json:"color"`
+	Nickname  string `json:"nickname"`
+	Color     string `json:"color"`
+	Character string `json:"character"`
 }
 
 // CreateRoomPayload는 방 생성시 추가 옵션이 필요할 경우 사용합니다. (현재는 비어있음)
@@ -116,38 +119,31 @@ type GameCountdownPayload struct {
 // GameStateUpdatePayload는 게임 중 상태 업데이트를 위해 사용됩니다.
 type GameStateUpdatePayload struct {
 	Players   []PlayerStateInfo `json:"players"`
-	Bullets   []BulletInfo      `json:"bullets,omitempty"`             // 총알 정보
 	TimeLeft  int               `json:"time_left"`                     // 초 단위
 	GameState interface{}       `json:"game_specific_state,omitempty"` // 게임별 추가 상태
 }
 
 // PlayerStateInfo는 게임 상태 업데이트 시 플레이어의 상세 정보를 나타냅니다.
 type PlayerStateInfo struct {
-	ID    string  `json:"id"`
-	X     float64 `json:"x"`
-	Y     float64 `json:"y"`
-	Z     float64 `json:"z"`
-	Yaw   float64 `json:"yaw"`
-	Pitch float64 `json:"pitch"`
-	Score int     `json:"score"`
-	Asset string  `json:"asset,omitempty"` // 사용할 3D 모델 에셋
+	ID       string  `json:"id"`
+	Nickname string  `json:"nickname"`
+	Color    string  `json:"color"`
+	X        float64 `json:"x"`
+	Y        float64 `json:"y"`
+	Z        float64 `json:"z"`
+	Yaw      float64 `json:"yaw"`
+	Pitch    float64 `json:"pitch"`
+	Score    int     `json:"score"`
+	Asset    string  `json:"asset,omitempty"` // 사용할 3D 모델 에셋
 
 	// 체력 시스템
-	Health    int  `json:"health"`     // 현재 체력
-	MaxHealth int  `json:"max_health"` // 최대 체력
-	IsAlive   bool `json:"is_alive"`   // 생존 상태
+	Health       int  `json:"health"`        // 현재 체력
+	MaxHealth    int  `json:"max_health"`    // 최대 체력
+	IsAlive      bool `json:"is_alive"`      // 생존 상태
+	IsInvincible bool `json:"is_invincible"` // 무적 상태
 
 	// 애니메이션 시스템 (추후 구현 예정)
 	CurrentAnimation string `json:"current_animation,omitempty"` // 현재 재생 중인 애니메이션 클립
-	// IsAlive bool `json:"is_alive"` // 게임에 따라 필요 - 이미 위에 추가됨
-}
-
-// BulletInfo는 총알의 상태 정보를 나타냅니다.
-type BulletInfo struct {
-	ID    string  `json:"id"`
-	X     float64 `json:"x"`
-	Z     float64 `json:"z"`
-	Color string  `json:"color"` // 총알 색상 (발사한 플레이어의 색상)
 }
 
 // GameEndedPayload는 게임 종료 시 최종 결과를 전달합니다.
@@ -198,3 +194,15 @@ type TimestampedMessage struct {
 // 클라이언트에게 Sender 정보를 보낼 필요가 없으므로 별도 구조체를 사용하거나,
 // 전송 시점에 Marshal 하면서 Sender 필드를 제외할 수 있습니다.
 // 여기서는 간단히 Message 구조체를 그대로 사용하고, 전송 시 Sender는 nil로 설정합니다.
+
+// GameInitDataPayload는 게임 시작 시 클라이언트에게 전송되는 초기화 데이터입니다.
+type GameInitDataPayload struct {
+	Players    []PlayerStateInfo `json:"players"`     // 모든 플레이어의 초기 상태
+	MapData    interface{}       `json:"map_data"`    // 맵 관련 데이터 (선택적)
+	GameConfig interface{}       `json:"game_config"` // 게임 설정 (선택적)
+}
+
+// GameLoadingCompletePayload는 클라이언트가 게임 로딩을 완료했을 때 전송합니다.
+type GameLoadingCompletePayload struct {
+	PlayerID string `json:"player_id"`
+}
