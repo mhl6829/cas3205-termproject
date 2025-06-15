@@ -247,6 +247,8 @@
         width: 60px;
         border: 1px solid rgba(255, 255, 255, 0.3);
         pointer-events: none;
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .player-health-fill {
@@ -321,12 +323,21 @@
         </div>
         <div>
           <label for="nickname" class="block text-sm font-medium text-gray-600 mb-2">닉네임</label>
-          <input
-            type="text"
-            id="nickname"
-            value="Player"
-            class="input-field mt-1 block w-full px-4 py-3 rounded-xl bg-gray-50 text-gray-800 placeholder-gray-400 focus:outline-none"
-          />
+          <div class="flex space-x-2">
+            <input
+              type="text"
+              id="nickname"
+              value="Player"
+              class="input-field mt-1 block px-4 py-3 rounded-xl bg-gray-50 text-gray-800 placeholder-gray-400 focus:outline-none flex-1"
+            />
+            <button 
+              id="random-nickname-btn"
+              type="button"
+              class="mt-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl transform hover:scale-105 active:scale-95"
+              title="랜덤 닉네임 생성">
+              🎲
+            </button>
+          </div>
         </div>
         <div>
           <label for="character" class="block text-sm font-medium text-gray-600 mb-2">캐릭터 선택</label>
@@ -461,5 +472,37 @@
     <script type="module" src="js/input-handler.js"></script>
     <script type="module" src="js/character-preview.js"></script>
     <script type="module" src="js/main.js"></script>
+    
+    <script type="module">
+      import { generateNickname } from './js/nickname-generator.js';
+
+      // 페이지 로드 시 닉네임 생성기 초기화
+      document.addEventListener('DOMContentLoaded', function() {
+        const nicknameInput = document.getElementById('nickname');
+        const randomNicknameBtn = document.getElementById('random-nickname-btn');
+        
+        // 페이지 로드 시 자동으로 랜덤 닉네임 설정
+        nicknameInput.value = generateNickname();
+        
+        // 주사위 버튼 클릭 이벤트
+        randomNicknameBtn.addEventListener('click', function() {
+          // 버튼 애니메이션 효과
+          this.style.transform = 'scale(0.9)';
+          setTimeout(() => {
+            this.style.transform = 'scale(1)';
+          }, 100);
+          
+          // 새로운 랜덤 닉네임 생성
+          nicknameInput.value = generateNickname();
+          
+          // 입력 필드에 포커스를 잠깐 주어 변경을 알림
+          nicknameInput.focus();
+          nicknameInput.select();
+          setTimeout(() => {
+            nicknameInput.blur();
+          }, 500);
+        });
+      });
+    </script>
   </body>
 </html>

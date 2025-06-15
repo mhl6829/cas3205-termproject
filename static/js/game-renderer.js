@@ -14,6 +14,7 @@ class GameRenderer {
     this.raycaster = null;
     this.playerMeshes = new Map();
     this.playerOverlays = new Map(); // 플레이어 오버레이 (체력바, 닉네임)
+    this.playerHalos = new Map(); // 플레이어 할로/링 (현재 플레이어 표시용)
     this.animationFrameId = null;
     this.mouse = new THREE.Vector2();
     
@@ -277,6 +278,11 @@ class GameRenderer {
       this.scene.add(playerMesh);
       this.playerMeshes.set(playerId, playerMesh);
       
+      // 현재 플레이어인 경우 할로(링) 추가
+      if (playerId === stateManager.getClientId()) {
+        this.createPlayerHalo(playerId, playerData.color);
+      }
+      
       // 초기 위치 설정 (첫 생성 시에는 바로 설정)
       const clampedX = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.x));
       const clampedZ = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.z));
@@ -342,6 +348,59 @@ class GameRenderer {
     }
   }
 
+  createPlayerHalo(playerId, playerColor) {
+    // 이미 할로가 있으면 제거
+    this.removePlayerHalo(playerId);
+    
+    // 링 지오메트리 생성 (내부 반지름, 외부 반지름, 세그먼트)
+    const haloGeometry = new THREE.RingGeometry(2, 2.4, 32);
+    
+    // 색상 파싱을 안전하게 처리
+    let colorHex;
+    try {
+      colorHex = parseInt(playerColor.replace("#", "0x"));
+      if (isNaN(colorHex)) {
+        colorHex = 0xffffff; // 기본 흰색
+      }
+    } catch (e) {
+      colorHex = 0xffffff; // 기본 흰색
+    }
+    
+    // 할로 재질 생성 - MeshBasicMaterial로 단순하게
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide
+    });
+    
+    const haloMesh = new THREE.Mesh(haloGeometry, haloMaterial);
+    
+    // 할로를 바닥에 위치시키고 수평으로 배치
+    haloMesh.rotation.x = -Math.PI / 2; // 90도 회전하여 바닥에 평행하게
+    haloMesh.position.y = 0.1; // 바닥보다 살짝 위에
+    
+    // 애니메이션을 위한 초기값 설정
+    haloMesh.userData = {
+      originalOpacity: 0.5,
+      originalColor: colorHex,
+      pulseTime: 0
+    };
+    
+    this.scene.add(haloMesh);
+    this.playerHalos.set(playerId, haloMesh);
+  }
+
+  removePlayerHalo(playerId) {
+    const halo = this.playerHalos.get(playerId);
+    if (halo) {
+      this.scene.remove(halo);
+      if (halo.geometry) halo.geometry.dispose();
+      if (halo.material) halo.material.dispose();
+      this.playerHalos.delete(playerId);
+    }
+  }
+
   updatePlayerMeshes() {
     const playersData = Array.from(stateManager.getAllPlayers().values());
     const currentPlayerIdsFromServer = new Set(playersData.map((p) => p.id));
@@ -366,6 +425,9 @@ class GameRenderer {
         
         // 오버레이도 제거
         this.removePlayerOverlay(id);
+        
+        // 할로도 제거
+        this.removePlayerHalo(id);
       }
     });
 
@@ -408,6 +470,21 @@ class GameRenderer {
       if (mesh.mixer) {
         const clampedDeltaTime = Math.min(deltaTime, 0.033);
         mesh.mixer.update(clampedDeltaTime);
+      }
+
+      // 2.5. 할로 위치 및 애니메이션 업데이트
+      const halo = this.playerHalos.get(player.id);
+      if (halo && halo.material && halo.userData) {
+        // 할로를 플레이어 위치에 맞춰 이동
+        halo.position.x = mesh.position.x;
+        halo.position.z = mesh.position.z;
+        
+        // 펄스 애니메이션
+        halo.userData.pulseTime += deltaTime * 2; // 펄스 속도
+        // 투명도 펄스
+        const pulseOpacity = halo.userData.originalOpacity + Math.sin(halo.userData.pulseTime * 2) * 0.3;
+        halo.material.opacity = Math.max(0.2, Math.min(0.8, pulseOpacity));
+        
       }
 
       // 3. 무적 상태 깜빡임 효과 처리
@@ -526,8 +603,13 @@ class GameRenderer {
         const dz = intersectionPoint.z - myMesh.position.z;
         const newYaw = Math.atan2(dx, dz);
 
-        // 유의미한 변화가 있을 때만 업데이트
-        if (Math.abs(newYaw - stateManager.getPlayerYaw()) > 0.01) {
+        // 유의미한 변화가 있을 때만 업데이트 (최단 경로 고려)
+        const currentYaw = stateManager.getPlayerYaw();
+        let diff = newYaw - currentYaw;
+        if (diff > Math.PI) diff -= 2 * Math.PI;
+        if (diff < -Math.PI) diff += 2 * Math.PI;
+
+        if (Math.abs(diff) > 0.01) {
           stateManager.setPlayerYaw(newYaw);
           window.websocketManager.sendMessage("player_action", {
             action_type: "look",
@@ -581,6 +663,14 @@ class GameRenderer {
         overlayData.element.remove();
       });
       this.playerOverlays.clear();
+
+      // 플레이어 할로 정리
+      this.playerHalos.forEach((halo) => {
+        this.scene.remove(halo);
+        if (halo.geometry) halo.geometry.dispose();
+        if (halo.material) halo.material.dispose();
+      });
+      this.playerHalos.clear();
 
       // 씬의 모든 오브젝트 제거
       while (this.scene.children.length > 0) {
