@@ -12,32 +12,38 @@ class GameRenderer {
     this.renderer = null;
     this.gameFloor = null;
     this.raycaster = null;
+    // 플레이어 메시 관리용
     this.playerMeshes = new Map();
-    this.playerOverlays = new Map(); // 플레이어 오버레이 (체력바, 닉네임)
-    this.playerHalos = new Map(); // 플레이어 할로/링 (현재 플레이어 표시용)
+    // 플레이어 오버레이 관리용
+    this.playerOverlays = new Map();
+    // 플레이어 Halo 관리용
+    this.playerHalos = new Map();
     this.animationFrameId = null;
     this.mouse = new THREE.Vector2();
     
-    // Interpolation을 위한 변수들
-    this.playerTargetPositions = new Map(); // 플레이어별 목표 위치
-    this.lerpSpeed = 0.2; // 플레이어 lerp 속도 (0.1 ~ 0.3 사이가 적당)
+    // 플레이어별 목표 위치 (서버에서 받은 최신 값 관리용, 다음 프레임에 lerp)
+    this.playerTargetPositions = new Map();
+    // 플레이어 lerp 속도 (position과 yaw 보간)
+    this.lerpSpeed = 0.2;
     
-    // 맵 설정 (화면에 맞는 크기로 조정)
-    this.MAP_SIZE = 40; // 40x40으로 축소
-    this.MAP_BOUNDARY = this.MAP_SIZE / 2; // ±20 범위
+    // 맵 설정
+    this.MAP_SIZE = 40;
+    this.MAP_BOUNDARY = this.MAP_SIZE / 2;
     
-    // 공격 상태 추적
-    this.lastAttackTime = 0; // 마지막 공격 시간
-    this.hasAttackEnded = false; // 공격이 끝났는지 추적
+    // 클라이언트 마지막 공격 시간
+    this.lastAttackTime = 0; 
+    // 공격이 끝났는지 체크
+    this.hasAttackEnded = false;
     
-    // 성능 최적화를 위한 시간 추적
+    // 시간 체크
     this.lastFrameTime = 0;
     this.clock = new THREE.Clock();
 
+    // 무적 상태 관리용
     this.invincibleFlashState = new Map();
 
 
-    // 게임 환경 변수 (클라이언트 view 제어용, 수정해도 서버에 반영되지 않음)
+    // 게임 환경 변수 (클라이언트 view 제어용, 수정해도 서버에 반영 x)
     this.hammerDuration = 500;
     this.respawnDuration = 500;
     this.deathDuration = 3000;
@@ -47,19 +53,23 @@ class GameRenderer {
   initThreeJS() {
     if (this.scene) return;
 
+    // 씬 생성
     this.scene = new THREE.Scene();
-    // 밝고 귀여운 하늘 파스텔 배경색으로 변경
-    this.scene.background = new THREE.Color(0x87ceeb); // 매우 밝은 블루그레이
+    // 배경색 설정
+    this.scene.background = new THREE.Color(0x87ceeb);
+
+    // 레이캐스터 생성 (포인터 위치로 평면 상 좌표 추적, yaw 계산에 필요)
     this.raycaster = new THREE.Raycaster();
 
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(60, aspect, 1, 1000);
-    // 카메라 위치를 맵 전체가 보이도록 조정
+    // 카메라 초기화
     this.camera.position.set(0, 25, 30);
     this.camera.lookAt(0, 0, 0);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 픽셀 비율 제한으로 성능 향상
+    // 설정 안 하면 맥에서 흐릿하게 나옴
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     
     // 그림자 활성화
@@ -68,6 +78,7 @@ class GameRenderer {
 
 
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // 이거 켜야 색깔 예쁘게 나옴
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 2;
     
@@ -75,42 +86,32 @@ class GameRenderer {
     gameCanvasContainer.innerHTML = "";
     gameCanvasContainer.appendChild(this.renderer.domElement);
 
-    // 조명 설정 - 훨씬 더 밝고 다양한 조명
-    // 환경광을 더 밝게
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1); // 환경광 대폭 증가
+    // Ambient Light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     this.scene.add(ambientLight);
     
-    // 주 방향광
+    // Dir Light
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // 더 밝은 방향광
     directionalLight.position.set(30, 50, 20);
     
-    // 그림자 설정
+    // Dir Light 그림자 설정
     directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
     directionalLight.shadow.camera.near = 0.5;
     directionalLight.shadow.camera.far = 500;
     directionalLight.shadow.camera.left = -50;
     directionalLight.shadow.camera.right = 50;
     directionalLight.shadow.camera.top = 50;
     directionalLight.shadow.camera.bottom = -50;
-    // directionalLight.shadow.bias = -0.005;
-    // directionalLight.shadow.normalBias = 0.05;
-    
+    directionalLight.shadow.bias = -0.001;
     this.scene.add(directionalLight);
     
-    // 중앙 상단에 추가 조명
-    const topLight = new THREE.PointLight(0xffffff, 0.5, 80);
-    topLight.position.set(0, 40, 0);
-    this.scene.add(topLight);
-
-    // 바닥 생성 - map.glb 사용
     const mapModel = window.assetManager.createInstance('map.glb');
     if (mapModel) {
-      // GLB 맵 모델 사용
       this.gameFloor = mapModel;
       this.gameFloor.position.y = 0;
-      this.gameFloor.receiveShadow = true; // 맵이 그림자를 받도록 설정
+      this.gameFloor.receiveShadow = true;
       
       // 맵의 모든 메시에 그림자 설정
       this.gameFloor.traverse((child) => {
@@ -127,7 +128,6 @@ class GameRenderer {
     // 기존 플레이어들의 메시 생성
     this.playerMeshes.clear();
     stateManager.getAllPlayers().forEach((playerInfo) => {
-      console.log(playerInfo.color);
       this.createOrUpdatePlayerMesh(playerInfo.id, {
         ...playerInfo
       });
@@ -157,15 +157,12 @@ class GameRenderer {
         let targetPoint;
         
         if (intersects.length > 0) {
-          // 바닥과 교차하는 경우 그 지점을 사용
           targetPoint = intersects[0].point;
         } else {
-          // 바닥 밖을 클릭한 경우, 가상의 평면(y=0)과의 교차점 계산
           const planeY = this.gameFloor.position.y;
           const rayOrigin = this.camera.position;
           const rayDirection = new THREE.Vector3(mouseX, mouseY, 0.5).unproject(this.camera).sub(rayOrigin).normalize();
           
-          // y = planeY 평면과의 교차점 계산
           const t = (planeY - rayOrigin.y) / rayDirection.y;
           targetPoint = rayOrigin.clone().add(rayDirection.multiplyScalar(t));
         }
@@ -193,9 +190,10 @@ class GameRenderer {
             }
           });
           
-          // 공격 시간 기록 (클라이언트 회전 제한)
+          // 공격 시간 기록 (플레이어 회전 제한용)
+          // TODO: 좀 더 나은 방법 없나...
           this.lastAttackTime = Date.now();
-          this.hasAttackEnded = false; // 새 공격 시작
+          this.hasAttackEnded = false;
         }
       }
     }
@@ -216,18 +214,12 @@ class GameRenderer {
       const model = window.assetManager.createInstance(playerData.asset);
       
       if (model) {
-        // GLB 모델 사용
         playerMesh = model;
-        // 모델 크기 조정
         playerMesh.scale.set(2, 2, 2);
         
-        // 모델의 모든 메시에 색상 적용
         playerMesh.traverse((child) => {
           if (child.isMesh) {
             if (child.material) {
-              // 재질 복제 (다른 플레이어와 재질 공유 방지)
-              child.material = child.material.clone();
-              console.log(playerData.color);
               if (child.material.name === 'hammer_head') {
                 child.material.color.setHex(parseInt(playerData.color.replace("#", "0x"))); 
               }
@@ -236,22 +228,17 @@ class GameRenderer {
             // 그림자 설정
             child.castShadow = true;
             child.receiveShadow = true;
-
-            // 투명도 설정
-            child.material.transparent = true;
           }
         });
         
-        // GLB 모델의 애니메이션 믹서 설정
+        // 니메이션 믹서 설정
         if (model.animations) {
           
           let animationClips = [];
-          
-          // 배열인 경우와 객체인 경우 모두 처리
+        
           if (Array.isArray(model.animations)) {
             animationClips = model.animations;
           } else if (typeof model.animations === 'object') {
-            // 객체인 경우 values()를 사용하여 배열로 변환
             animationClips = Object.values(model.animations);
           }
           
@@ -266,7 +253,7 @@ class GameRenderer {
               }
             });
             
-            // 기본 idle 애니메이션 시작 (있는 경우)
+            // idle 애니메이션 시작
             if (playerMesh.animations && playerMesh.animations['idle']) {
               playerMesh.currentAction = playerMesh.animations['idle'];
               playerMesh.currentAction.play();
@@ -278,12 +265,12 @@ class GameRenderer {
       this.scene.add(playerMesh);
       this.playerMeshes.set(playerId, playerMesh);
       
-      // 현재 플레이어인 경우 할로(링) 추가
+      // 로컬 플레이어인 경우 Halo추가
       if (playerId === stateManager.getClientId()) {
         this.createPlayerHalo(playerId, playerData.color);
       }
       
-      // 초기 위치 설정 (첫 생성 시에는 바로 설정)
+      // 초기 위치 설정 (어차피 서버에서 받아옴)
       const clampedX = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.x));
       const clampedZ = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.z));
       
@@ -302,7 +289,7 @@ class GameRenderer {
     // 애니메이션 클립 처리
     this.handlePlayerAnimation(playerMesh, playerData.current_animation);
 
-    // 플레이어 목표 위치를 맵 경계 내로 제한하여 저장
+    // Target 위치 저장 (어차피 서버에서 받아옴, 임의 값)
     const clampedX = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.x));
     const clampedZ = Math.max(-this.MAP_BOUNDARY + 1, Math.min(this.MAP_BOUNDARY - 1, playerData.z));
     const yPosition = 0
@@ -317,7 +304,6 @@ class GameRenderer {
   }
 
   handlePlayerAnimation(playerMesh, animationName) {
-    // GLB 모델이 아니거나 애니메이션이 없으면 무시
     if (!playerMesh || !playerMesh.mixer || !playerMesh.animations || !animationName) {
       return;
     }
@@ -338,7 +324,7 @@ class GameRenderer {
       playerMesh.currentAction.reset().fadeIn(0.2).play();
       playerMesh.currentAnimationName = animationName;
       
-      // 특정 애니메이션은 한 번만 재생
+      // 일회성 애니메이션은 한 번만 재생
       if (['hammer_attack', 'death', 'respawn', 'hit'].includes(animationName)) {
         playerMesh.currentAction.setLoop(THREE.LoopOnce);
         playerMesh.currentAction.clampWhenFinished = true;
@@ -351,22 +337,20 @@ class GameRenderer {
   createPlayerHalo(playerId, playerColor) {
     // 이미 할로가 있으면 제거
     this.removePlayerHalo(playerId);
-    
-    // 링 지오메트리 생성 (내부 반지름, 외부 반지름, 세그먼트)
+
     const haloGeometry = new THREE.RingGeometry(2, 2.4, 32);
     
-    // 색상 파싱을 안전하게 처리
+    // 색상 파싱
     let colorHex;
     try {
       colorHex = parseInt(playerColor.replace("#", "0x"));
       if (isNaN(colorHex)) {
-        colorHex = 0xffffff; // 기본 흰색
+        colorHex = 0xffffff;
       }
     } catch (e) {
-      colorHex = 0xffffff; // 기본 흰색
+      colorHex = 0xffffff;
     }
     
-    // 할로 재질 생성 - MeshBasicMaterial로 단순하게
     const haloMaterial = new THREE.MeshBasicMaterial({
       color: colorHex,
       transparent: true,
@@ -376,11 +360,10 @@ class GameRenderer {
     
     const haloMesh = new THREE.Mesh(haloGeometry, haloMaterial);
     
-    // 할로를 바닥에 위치시키고 수평으로 배치
-    haloMesh.rotation.x = -Math.PI / 2; // 90도 회전하여 바닥에 평행하게
-    haloMesh.position.y = 0.1; // 바닥보다 살짝 위에
     
-    // 애니메이션을 위한 초기값 설정
+    haloMesh.rotation.x = -Math.PI / 2;
+    haloMesh.position.y = 0.1;
+    
     haloMesh.userData = {
       originalOpacity: 0.5,
       originalColor: colorHex,
@@ -420,13 +403,13 @@ class GameRenderer {
         if (mesh.material) mesh.material.dispose();
         this.playerMeshes.delete(id);
         
-        // 목표 위치 데이터도 제거
+        // 위치 데이터 제거
         this.playerTargetPositions.delete(id);
         
-        // 오버레이도 제거
+        // 오버레이 제거
         this.removePlayerOverlay(id);
         
-        // 할로도 제거
+        // Halo 제거 (어차피 로컬 플레이어만 있음, 혹시 모르니)
         this.removePlayerHalo(id);
       }
     });
@@ -445,75 +428,76 @@ class GameRenderer {
     if (!this.renderer || !this.scene || !this.camera) return;
 
     const deltaTime = this.clock.getDelta();
-    const flashInterval = 0.25; // 0.25초 깜빡임 간격
-
+    
     // 공격 종료 체크
     this.checkAttackEnd();
 
-    // 모든 플레이어에 대한 업데이트를 한 번의 루프로 처리
     stateManager.getAllPlayers().forEach((player) => {
       const mesh = this.playerMeshes.get(player.id);
       if (!mesh) return;
 
-      // 1. 플레이어 위치 및 회전 Lerp 적용
+      // 플레이어 위치 및 회전 보간
       const targetPos = this.playerTargetPositions.get(player.id);
       if (targetPos) {
         mesh.position.lerp(targetPos, this.lerpSpeed);
-        
-        const targetYaw = (player.id === stateManager.getClientId()) 
+
+        // 죽었을 때는 yaw 반영하지 않음
+        if (mesh.currentAnimationName != 'death') {
+          const targetYaw = (player.id === stateManager.getClientId()) 
                           ? stateManager.getPlayerYaw() 
                           : targetPos.yaw;
-        mesh.rotation.y = this.lerpAngle(mesh.rotation.y, targetYaw, this.lerpSpeed);
+          mesh.rotation.y = this.lerpAngle(mesh.rotation.y, targetYaw, this.lerpSpeed);
+        }
       }
       
-      // 2. 애니메이션 믹서 업데이트
+      // 애니메이션 업데이트
       if (mesh.mixer) {
         const clampedDeltaTime = Math.min(deltaTime, 0.033);
         mesh.mixer.update(clampedDeltaTime);
       }
 
-      // 2.5. 할로 위치 및 애니메이션 업데이트
+      // Halo 업데이트
+      // TODO: 함수 분리
       const halo = this.playerHalos.get(player.id);
       if (halo && halo.material && halo.userData) {
-        // 할로를 플레이어 위치에 맞춰 이동
+        // 위치 업데이트
         halo.position.x = mesh.position.x;
         halo.position.z = mesh.position.z;
         
-        // 펄스 애니메이션
-        halo.userData.pulseTime += deltaTime * 2; // 펄스 속도
-        // 투명도 펄스
+        // 애니메이션
+        halo.userData.pulseTime += deltaTime * 2
         const pulseOpacity = halo.userData.originalOpacity + Math.sin(halo.userData.pulseTime * 2) * 0.3;
         halo.material.opacity = Math.max(0.2, Math.min(0.8, pulseOpacity));
         
       }
 
-      // 3. 무적 상태 깜빡임 효과 처리
-      // 플레이어별 깜빡임 상태를 가져오거나 초기화
+      // 무적 상태 깜빡임 효과 처리
+      // TODO: 함수 분리
+      const flashInterval = 0.25;
       if (!this.invincibleFlashState.has(player.id)) {
         this.invincibleFlashState.set(player.id, { timer: 0, isWhite: false });
       }
       const flashState = this.invincibleFlashState.get(player.id);
-      let targetEmissive = 0x000000; // 기본 emissive 색상
+      let targetEmissive = 0x000000;
 
       if (player.is_invincible) {
         flashState.timer += deltaTime;
         if (flashState.timer >= flashInterval) {
-          flashState.isWhite = !flashState.isWhite; // 상태 반전
-          flashState.timer %= flashInterval;      // 타이머를 간격 내로 유지
+          flashState.isWhite = !flashState.isWhite; 
+          flashState.timer %= flashInterval;      
         }
         if (flashState.isWhite) {
           targetEmissive = 0x444444;
         }
       } else {
-        // 무적이 아니면 상태 초기화
+        // 무적 아니면 상태 초기화
         flashState.timer = 0;
         flashState.isWhite = false;
       }
       
-      // 재질(material) 업데이트s
+      
       mesh.traverse((child) => {
         if (child.isMesh && child.material) {
-          // emissive 색상이 목표 색상과 다를 때만 업데이트
           if (child.material.emissive.getHex() !== targetEmissive) {
             child.material.emissive.setHex(targetEmissive);
           }
@@ -527,7 +511,7 @@ class GameRenderer {
       const mesh = this.playerMeshes.get(playerId);
       if (mesh && this.camera) {
         const meshPosition = mesh.position.clone();
-        meshPosition.y += 8; // 캐릭터 머리 위
+        meshPosition.y += 8;
         const screenPosition = meshPosition.project(this.camera);
         const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
         const y = (screenPosition.y * -0.5 + 0.5) * window.innerHeight;
@@ -540,16 +524,16 @@ class GameRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 
-  // Linear interpolation 함수
+  // 위치 선형 보간
   lerp(start, end, factor) {
     return start + (end - start) * factor;
   }
 
-  // 각도 interpolation 함수 (순환 특성 고려)
+  // 각도 선형 보간
   lerpAngle(start, end, factor) {
     let diff = end - start;
     
-    // 각도 차이가 π보다 크면 반대 방향으로 회전
+    // 각도 차이가 π보다 크면 반대 방향으로
     if (diff > Math.PI) {
       diff -= 2 * Math.PI;
     } else if (diff < -Math.PI) {
@@ -559,6 +543,9 @@ class GameRenderer {
     return start + diff * factor;
   }
 
+  // yaw까지 서버 정보로 업데이트 하면 반응이 너무 느림
+  // yaw는 로컬 값이 우선으로 적용
+  // remote 플레이어들만 서버 정보로 yaw 업데이트
   handleCanvasMouseMove(event) {
     if (uiManager.mainUiContainer.classList.contains("hidden") &&
         this.scene && this.camera && this.gameFloor && stateManager.getClientId()) {
@@ -568,10 +555,10 @@ class GameRenderer {
       this.mouse.x = ((event.clientX - canvasBounds.left) / canvasBounds.width) * 2 - 1;
       this.mouse.y = -((event.clientY - canvasBounds.top) / canvasBounds.height) * 2 + 1;
 
-      // 공격 중에는 회전하지 않음 (1초간)
+      // 공격 중에는 회전 안 함
       const now = Date.now();
       if (now - this.lastAttackTime < 500) {
-        // 커스텀 크로스헤어 위치만 업데이트
+        // 포인터 위치만 업데이트
         const customCrosshair = document.getElementById("custom-crosshair");
         customCrosshair.style.left = `${event.clientX}px`;
         customCrosshair.style.top = `${event.clientY}px`;
@@ -586,15 +573,12 @@ class GameRenderer {
         let intersectionPoint;
         
         if (intersects.length > 0) {
-          // 바닥과 교차하는 경우 그 지점을 사용
           intersectionPoint = intersects[0].point;
         } else {
-          // 바닥 밖을 마우스가 지날 때도 가상의 평면과의 교차점 계산
           const planeY = this.gameFloor.position.y;
           const rayOrigin = this.camera.position;
           const rayDirection = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5).unproject(this.camera).sub(rayOrigin).normalize();
           
-          // y = planeY 평면과의 교차점 계산
           const t = (planeY - rayOrigin.y) / rayDirection.y;
           intersectionPoint = rayOrigin.clone().add(rayDirection.multiplyScalar(t));
         }
@@ -603,7 +587,6 @@ class GameRenderer {
         const dz = intersectionPoint.z - myMesh.position.z;
         const newYaw = Math.atan2(dx, dz);
 
-        // 유의미한 변화가 있을 때만 업데이트 (최단 경로 고려)
         const currentYaw = stateManager.getPlayerYaw();
         let diff = newYaw - currentYaw;
         if (diff > Math.PI) diff -= 2 * Math.PI;
@@ -618,7 +601,7 @@ class GameRenderer {
         }
       }
 
-      // 커스텀 크로스헤어 위치 업데이트
+      // 포인터 위치 업데이트
       const customCrosshair = document.getElementById("custom-crosshair");
       customCrosshair.style.left = `${event.clientX}px`;
       customCrosshair.style.top = `${event.clientY}px`;
@@ -656,7 +639,7 @@ class GameRenderer {
         }
       });
       this.playerMeshes.clear();
-      this.playerTargetPositions.clear(); // 목표 위치 데이터도 정리
+      this.playerTargetPositions.clear();
 
       // 플레이어 오버레이 정리
       this.playerOverlays.forEach((overlayData) => {
@@ -664,7 +647,7 @@ class GameRenderer {
       });
       this.playerOverlays.clear();
 
-      // 플레이어 할로 정리
+      // Halo 정리
       this.playerHalos.forEach((halo) => {
         this.scene.remove(halo);
         if (halo.geometry) halo.geometry.dispose();
@@ -707,13 +690,14 @@ class GameRenderer {
 
   checkAttackEnd() {
     const now = Date.now();
-    const attackDuration = 500; // 1초
+    const attackDuration = 500;
     
     // 공격이 진행 중이고 이제 끝났을 때
     if (this.lastAttackTime > 0 && !this.hasAttackEnded && now - this.lastAttackTime >= attackDuration) {
       this.hasAttackEnded = true;
       
-      // 현재 키보드 상태를 서버에 전송
+      // 현재 키보드 상태 전송
+      // 공격 끝났을 때 누르고 있는 키 반영하기 위함
       if (window.inputHandler) {
         window.inputHandler.sendMovementInput();
       }
@@ -735,11 +719,10 @@ class GameRenderer {
     nameDiv.style.color = playerInfo.color;
     nameDiv.style.borderColor = playerInfo.color;
 
-    // 체력바 컨테이너
+    // 체력바
     const healthBarContainer = document.createElement("div");
     healthBarContainer.className = "player-health-bar";
 
-    // 체력바 채우기
     const healthFill = document.createElement("div");
     healthFill.className = "player-health-fill";
     healthFill.style.width = "100%";
@@ -773,7 +756,7 @@ class GameRenderer {
 
     overlayData.healthFill.style.width = `${healthPercentage}%`;
 
-    // 체력에 따른 색상 변경
+    // 색상 변경
     overlayData.healthFill.className = "player-health-fill";
     if (healthPercentage <= 33) {
       overlayData.healthFill.classList.add("low");

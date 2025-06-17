@@ -12,16 +12,13 @@ class CharacterPreview {
     this.mixer = null;
     this.clock = new THREE.Clock();
     this.animationId = null;
-    this.previewContainer = null;
-    this.currentCharacter = 'onion'; // 기본 캐릭터
+    this.currentCharacter = 'onion';
   }
 
   /**
    * 미리보기 초기화
    */
-  init() {
-    this.previewContainer = document.getElementById('character-preview-container');
-    
+  init() {    
     // Three.js 씬 초기화
     this.initScene();
     
@@ -41,12 +38,12 @@ class CharacterPreview {
   initScene() {
     // Scene 생성
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xf3f4f6);
+    this.scene.background = new THREE.Color(0xffffff);
     
     // Camera 설정
     this.camera = new THREE.PerspectiveCamera(
       50,
-      1, // 1:1 비율
+      1,
       0.1,
       1000
     );
@@ -60,8 +57,8 @@ class CharacterPreview {
       antialias: true,
       alpha: true
     });
-    this.renderer.setSize(300, 300);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(300, 300);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -70,17 +67,14 @@ class CharacterPreview {
     const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     this.scene.add(ambientLight);
     
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
     directionalLight.position.set(5, 5, 5);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 512;
     directionalLight.shadow.mapSize.height = 512;
+    directionalLight.shadow.bias = -0.005;
     this.scene.add(directionalLight);
     
-    // 약간의 측면 조명 추가
-    const sideLight = new THREE.DirectionalLight(0xffffff, 0.3);
-    sideLight.position.set(-5, 3, 0);
-    this.scene.add(sideLight);
   }
 
   /**
@@ -102,7 +96,7 @@ class CharacterPreview {
     
     if (model) {
       this.currentModel = model;
-      this.currentModel.scale.set(1, 1, 1); // 미리보기용 크기
+      this.currentModel.scale.set(1, 1, 1);
       this.currentModel.position.set(0, 0, 0);
       
       // 그림자 설정
@@ -126,7 +120,7 @@ class CharacterPreview {
       if (model.animations && model.animations.length > 0) {
         this.mixer = new THREE.AnimationMixer(model);
         
-        // idle 애니메이션 찾기
+        // idle 애니메이션
         const idleAnimation = model.animations.find(clip => clip.name === 'idle') || model.animations[0];
         if (idleAnimation) {
           const action = this.mixer.clipAction(idleAnimation);
@@ -190,7 +184,7 @@ class CharacterPreview {
     
     // 모델 회전 (미리보기 효과)
     if (this.currentModel) {
-      this.currentModel.rotation.y += delta * 0.5; // 천천히 회전
+      this.currentModel.rotation.y += delta * 0.5;
     }
     
     // 렌더링
@@ -198,7 +192,7 @@ class CharacterPreview {
   }
 
   /**
-   * 정리 함수
+   * 정리
    */
   dispose() {
     if (this.animationId) {
@@ -213,9 +207,6 @@ class CharacterPreview {
       this.renderer.dispose();
     }
     
-    if (this.previewContainer) {
-      this.previewContainer.remove();
-    }
   }
 }
 

@@ -7,14 +7,13 @@ class InputHandler {
   }
 
   initEventListeners() {
-    // 전역 키보드 이벤트 리스너
+    // 전역 이벤트 리스너
     document.addEventListener("keydown", this.handleKeyDown.bind(this));
     document.addEventListener("keyup", this.handleKeyUp.bind(this));
   }
 
-  // 키 입력을 표준화하는 헬퍼 함수
+  // 키 입력 표준화
   normalizeKey(event) {
-    // 먼저 event.code를 사용하여 물리적 키 위치를 확인 (언어 설정 무관)
     const code = event.code;
     if (code === "KeyW") return "w";
     if (code === "KeyA") return "a";
@@ -25,14 +24,14 @@ class InputHandler {
     if (code === "ArrowLeft") return "arrowleft";
     if (code === "ArrowRight") return "arrowright";
     
-    // 한글 키보드 지원을 위한 fallback (event.key 기반)
+    // 한글 키보드 지원을 위한 fallback
     const key = event.key.toLowerCase();
     
     // 한글 키보드에서 WASD 키 매핑
-    if (key === "ㅈ") return "w"; // 한글 키보드에서 W
-    if (key === "ㅁ") return "a"; // 한글 키보드에서 A
-    if (key === "ㄴ") return "s"; // 한글 키보드에서 S
-    if (key === "ㅇ") return "d"; // 한글 키보드에서 D
+    if (key === "ㅈ") return "w";
+    if (key === "ㅁ") return "a";
+    if (key === "ㄴ") return "s";
+    if (key === "ㅇ") return "d";
     
     // 기본 영어 키 및 화살표 키
     if (key === "w" || key === "a" || key === "s" || key === "d" ||
@@ -40,7 +39,7 @@ class InputHandler {
       return key;
     }
     
-    return null; // 인식하지 않는 키
+    return null;
   }
 
   handleKeyDown(event) {
@@ -73,7 +72,7 @@ class InputHandler {
           stateChanged = true;
         }
       } else {
-        return; // 처리하지 않는 키인 경우 이벤트를 그대로 둠
+        return;
       }
 
       if (stateChanged) {
@@ -110,7 +109,7 @@ class InputHandler {
           stateChanged = true;
         }
       } else {
-        return; // 처리하지 않는 키인 경우 이벤트를 그대로 둠
+        return;
       }
 
       if (stateChanged) {
@@ -136,8 +135,8 @@ class InputHandler {
   }
 }
 
-// 전역 인스턴스 생성 (main.js에서 생성됨)
-// const inputHandler = new InputHandler();
-// window.inputHandler = inputHandler;
+// 전역 인스턴스 생성
+const inputHandler = new InputHandler();
+window.inputHandler = inputHandler;
 
 export { InputHandler }; 

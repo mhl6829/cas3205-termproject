@@ -192,8 +192,7 @@
         directionalLight.shadow.camera.right = 50;
         directionalLight.shadow.camera.top = 50;
         directionalLight.shadow.camera.bottom = -50;
-        // directionalLight.shadow.bias = -0.005;
-        // directionalLight.shadow.normalBias = 0.05;
+        directionalLight.shadow.bias = -0.001;
         
         scene.add(directionalLight);
         
@@ -228,8 +227,6 @@
             loadingDiv.classList.add("hidden");
             statusSpan.textContent = "로딩 완료";
 
-            console.log("map.glb 로드 완료:", gltf);
-
             // 모델의 바운딩 박스 계산하여 카메라 위치 조정
             const box = new THREE.Box3().setFromObject(mapModel);
             const center = box.getCenter(new THREE.Vector3());
@@ -240,9 +237,6 @@
             camera.position.set(center.x, center.y + maxDim, center.z + maxDim);
             controls.target.copy(center);
             controls.update();
-
-            console.log("모델 크기:", size);
-            console.log("모델 중심:", center);
           },
           function (xhr) {
             // 로딩 진행률

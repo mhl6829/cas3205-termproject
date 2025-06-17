@@ -1,17 +1,17 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
+
 /**
  * GLB 에셋 로딩 및 관리 모듈
  */
 class AssetManager {
   constructor() {
     this.gltfLoader = new GLTFLoader();
-    this.loadedAssets = new Map(); // 로드된 에셋 저장
+    this.loadedAssets = new Map();
     this.totalAssets = 0;
     this.loadedCount = 0;
 
-    // 로딩 UI 요소들
     this.loadingScreen = document.getElementById("loading-screen");
     this.loadingProgressBar = document.getElementById("loading-progress-bar");
     this.loadingStatus = document.getElementById("loading-status");
@@ -20,17 +20,15 @@ class AssetManager {
 
   /**
    * assets 폴더의 모든 GLB 파일 로드
-   * @returns {Promise} 모든 에셋 로드 완료 프로미스
+   * @returns {Promise}
    */
-  async loadAllAssets() {
-    // 로드할 에셋 목록 (실제로는 서버에서 목록을 받아올 수도 있음)
+  async loadAllAssets(callback) {
     const assetList = [
       "paprika.glb",
       "onion.glb",
       "tomato.glb",
       "potato.glb",
       "map.glb",
-      // 추가 에셋들...
     ];
 
     this.totalAssets = assetList.length;
@@ -42,8 +40,7 @@ class AssetManager {
 
     try {
       await Promise.all(loadPromises);
-      console.log("모든 에셋 로드 완료!");
-      this.hideLoadingScreen();
+      this.hideLoadingScreen(callback);
     } catch (error) {
       console.error("에셋 로드 중 오류 발생:", error);
       this.loadingStatus.textContent = "에셋 로드 중 오류가 발생했습니다.";
@@ -52,8 +49,8 @@ class AssetManager {
 
   /**
    * 개별 GLB 파일 로드
-   * @param {string} assetName - 에셋 파일명
-   * @returns {Promise} 에셋 로드 프로미스
+   * @param {string} assetName
+   * @returns {Promise}
    */
   loadAsset(assetName) {
     return new Promise((resolve, reject) => {
@@ -66,20 +63,17 @@ class AssetManager {
           this.loadedAssets.set(assetName, gltf);
           this.loadedCount++;
           this.updateLoadingProgress();
-
-          console.log(`에셋 로드 완료: ${assetName}`);
           resolve(gltf);
         },
         (xhr) => {
-          // 개별 파일 로딩 진행률 (선택사항)
+          // 로그용
           if (xhr.lengthComputable) {
             const percentComplete = (xhr.loaded / xhr.total) * 100;
-            console.log(`${assetName}: ${Math.round(percentComplete)}% 로드됨`);
           }
         },
         (error) => {
           console.error(`에셋 로드 실패: ${assetName}`, error);
-          this.loadedCount++; // 실패해도 카운트 증가
+          this.loadedCount++;
           this.updateLoadingProgress();
           reject(error);
         }
@@ -89,17 +83,17 @@ class AssetManager {
 
   /**
    * 로드된 에셋 가져오기
-   * @param {string} assetName - 에셋 파일명
-   * @returns {Object} GLTF 객체
+   * @param {string} assetName
+   * @returns {Object}
    */
   getAsset(assetName) {
     return this.loadedAssets.get(assetName);
   }
 
   /**
-   * 로드된 모델의 복제본 생성
-   * @param {string} assetName - 에셋 파일명
-   * @returns {THREE.Object3D} 복제된 3D 객체
+   * 모델 복제
+   * @param {string} assetName
+   * @returns {THREE.Object3D}
    */
   createInstance(assetName) {
     const asset = this.getAsset(assetName);
@@ -111,7 +105,7 @@ class AssetManager {
     // 모델 복제
     const instance = SkeletonUtils.clone(asset.scene);
 
-    // 애니메이션이 있는 경우 복제
+    // 애니메이션이 복제
     if (
       asset.animations &&
       Array.isArray(asset.animations) &&
@@ -119,6 +113,12 @@ class AssetManager {
     ) {
       instance.animations = asset.animations;
     }
+
+    instance.traverse((node) => {
+      if (node.isMesh && node.material) {
+        node.material = node.material.clone();
+      }
+    });
 
     return instance;
   }
@@ -134,10 +134,14 @@ class AssetManager {
   /**
    * 로딩 화면 숨기기
    */
-  hideLoadingScreen() {
+  hideLoadingScreen(callback) {
+    setTimeout(() => {
+      this.loadingStatus.textContent = "메인 메뉴를 불러오는 중입니다...";
+    }, 500);
     setTimeout(() => {
       this.loadingScreen.classList.add("hidden");
-    }, 500); // 부드러운 전환을 위한 딜레이
+      callback();
+    }, 1500);
   }
 
   /**

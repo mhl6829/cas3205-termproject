@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>테스트</title>
+    <title>Veggie Battler</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
       {
@@ -14,96 +14,460 @@
         }
       }
     </script>
+    
+    <!-- 한글 폰트 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&family=Gaegu:wght@300;400;700&family=Gamja+Flower&display=swap" rel="stylesheet">
+    
     <style>
+      /* ===== 기본 설정 ===== */
       body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-family: 'Jua', 'Gowun Dodum', 'Gaegu', cursive, sans-serif;
         overscroll-behavior: none;
         margin: 0;
-      }
-      #main-ui-container {
+        min-height: 100vh;
         position: relative;
-        z-index: 10;
+        overflow-x: hidden;
+        background-color: #dccb91;
       }
-      #game-canvas-container {
+
+      /* ===== 농장 동물 배경 ===== */
+      .farm-animals {
         position: fixed;
         top: 0;
         left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 0;
-        background-color: #1a202c;
-        cursor: none;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: -2;
       }
-      .game-hud {
-        position: fixed;
-        padding: 1rem;
-        color: #374151;
-        background: rgba(255, 255, 255, 0.95);
-        border-radius: 12px;
-        border: 1px solid rgba(249, 115, 22, 0.2);
-        backdrop-filter: blur(10px);
-        z-index: 20;
+
+      .farm-animal {
+        position: absolute;
+        font-size: 3rem;
+        opacity: 0.25;
+        animation: gentleFloat 20s ease-in-out infinite;
+        transform-origin: center;
+        filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.3));
+      }
+
+      /* 동물 위치 */
+      .farm-animal:nth-child(1) { top: 8%; left: 12%; animation-delay: 0s; font-size: 2.5rem; }
+      .farm-animal:nth-child(2) { top: 15%; left: 75%; animation-delay: 3s; font-size: 3.2rem; }
+      .farm-animal:nth-child(3) { top: 25%; left: 25%; animation-delay: 6s; font-size: 2.8rem; }
+      .farm-animal:nth-child(4) { top: 32%; left: 85%; animation-delay: 9s; font-size: 3.5rem; }
+      .farm-animal:nth-child(5) { top: 45%; left: 8%; animation-delay: 12s; font-size: 2.7rem; }
+      .farm-animal:nth-child(6) { top: 52%; left: 65%; animation-delay: 15s; font-size: 3.1rem; }
+      .farm-animal:nth-child(7) { top: 65%; left: 30%; animation-delay: 2s; font-size: 2.9rem; }
+      .farm-animal:nth-child(8) { top: 72%; left: 88%; animation-delay: 5s; font-size: 3.3rem; }
+      .farm-animal:nth-child(9) { top: 82%; left: 15%; animation-delay: 8s; font-size: 2.6rem; }
+      .farm-animal:nth-child(10) { top: 88%; left: 55%; animation-delay: 11s; font-size: 3.4rem; }
+      .farm-animal:nth-child(11) { top: 18%; left: 45%; animation-delay: 1s; font-size: 2.4rem; }
+      .farm-animal:nth-child(12) { top: 38%; left: 5%; animation-delay: 4s; font-size: 3.0rem; }
+      .farm-animal:nth-child(13) { top: 55%; left: 40%; animation-delay: 7s; font-size: 2.8rem; }
+      .farm-animal:nth-child(14) { top: 75%; left: 70%; animation-delay: 10s; font-size: 3.2rem; }
+
+      @keyframes gentleFloat {
+        0%, 100% { 
+          transform: translateY(0px) rotate(0deg) scale(1);
+          opacity: 0.4;
+        }
+        25% { 
+          transform: translateY(-20px) rotate(10deg) scale(1.15);
+          opacity: 0.6;
+        }
+        50% { 
+          transform: translateY(10px) rotate(-5deg) scale(0.85);
+          opacity: 0.4;
+        }
+        75% { 
+          transform: translateY(-20px) rotate(5deg) scale(1.2);
+          opacity: 0.6;
+        }
+      }
+
+      /* ===== 메인 컨테이너 ===== */
+      .game-container {
+        background: linear-gradient(145deg, #81c784, #66bb6a);
+        border: 4px solid #4caf50;
+        border-radius: 20px;
+        box-shadow: 
+          0 8px 32px rgba(76, 175, 80, 0.3),
+          inset 0 2px 0 rgba(255, 255, 255, 0.2),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* ===== 텍스트 스타일 ===== */
+      .game-title {
+        color: white;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: 400;
+        font-size: 1.8rem;
+        text-align: center;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        margin-bottom: 20px;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        letter-spacing: 1px;
+      }
+
+      .game-label,
+      .game-label-inline {
+        color: white;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: 400;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        letter-spacing: 0.5px;
+      }
+
+      .game-label {
+        font-size: 1rem;
+        margin-bottom: 8px;
+        display: block;
+      }
+
+      .game-label-inline {
         font-size: 0.9rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-        pointer-events: none;
-      }
-      #game-hud-top-left {
-        top: 10px;
-        left: 10px;
-        pointer-events: none;
-      }
-      #game-hud-top-right {
-        top: 10px;
-        right: 10px;
+        white-space: nowrap;
+        min-width: 60px;
         text-align: right;
-        pointer-events: none;
       }
-      #game-countdown-overlay {
-        position: fixed;
+
+      /* ===== 캐릭터 미리보기 ===== */
+      .character-preview {
+        background: #ffffff;
+        border: 4px solid #8bc34a;
+        border-radius: 15px;
+        position: relative;
+        overflow: hidden;
+        min-height: 320px;
+        box-shadow: 
+          0 6px 20px rgba(85, 139, 47, 0.3),
+          inset 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+
+      #character-preview-canvas {
+        width: 300px !important;
+        height: 300px !important;
+      }
+
+      #preview-placeholder {
+        position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        z-index: 30;
-        pointer-events: none;
+        z-index: 1;
+        color: #8bc34a;
+        font-size: 4rem;
+        text-shadow: 0 2px 4px rgba(139, 195, 74, 0.3);
+        filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.1));
       }
-      .player-list-item {
+
+      #connection-status-indicator {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 10px;
+        border-radius: 10px;
+        background-color: rgba(0, 0, 0, 0.2);
+      }
+
+      /* ===== 캐릭터 선택 그리드 ===== */
+      .character-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        background: rgba(230, 184, 0, 0.2);
+        padding: 12px;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .character-slot {
+        aspect-ratio: 1.5;
+        background: linear-gradient(145deg, #d4a574, #b8956a);
+        border: 3px solid #a0825c;
+        border-radius: 12px;
         display: flex;
         align-items: center;
-        padding: 0.75rem;
-        border-bottom-width: 1px;
-        border-color: #f3f4f6;
-        transition: background-color 0.2s ease;
+        justify-content: center;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 
+          0 4px 8px rgba(160, 130, 92, 0.3),
+          inset 0 2px 0 rgba(255, 255, 255, 0.2);
+        overflow: hidden;
       }
-      .player-list-item:hover {
-        background-color: #f9fafb;
+
+      .character-slot:hover {
+        transform: translateY(-2px);
+        box-shadow: 
+          0 6px 12px rgba(160, 130, 92, 0.4),
+          inset 0 2px 0 rgba(255, 255, 255, 0.3);
+        border-color: #e6b800;
       }
-      .player-list-item:last-child {
-        border-bottom-width: 0;
+
+      .character-slot.selected {
+        background: linear-gradient(145deg, #e6b800, #d4a574);
+        border-color: #e6b800;
+        transform: translateY(-2px);
+        box-shadow: 
+          0 6px 15px rgba(160, 130, 92, 0.4),
+          inset 0 2px 0 rgba(255, 255, 255, 0.3),
+          0 0 0 3px rgba(230, 184, 0, 0.5);
       }
-      .player-color-preview {
+
+      .character-slot .character-emoji {
+        font-size: 2rem;
+        filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
+        position: relative;
+        z-index: 2;
+      }
+
+      .character-slot .check-mark {
+        position: absolute;
+        top: 4px;
+        right: 4px;
         width: 20px;
         height: 20px;
+        background: #fdcb6e;
         border-radius: 50%;
-        margin-right: 0.75rem;
-        border: 2px solid rgba(156, 163, 175, 0.3);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        color: #2d3436;
+        opacity: 0;
+        transform: scale(0);
+        transition: all 0.2s ease;
+        z-index: 3;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
       }
-      #custom-crosshair {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        background: #f97316;
-        border: 2px solid rgba(255, 255, 255, 0.9);
-        box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
-        z-index: 100;
+
+      .character-slot.selected .check-mark {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      /* ===== 색상 팔레트 ===== */
+      .game-color-palette {
+        display: flex;
+        justify-content: space-between;
+        background: rgba(230, 184, 0, 0.2);
+        padding: 12px;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .game-color-palette::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+      }
+
+      .game-color-option {
+        width: 45px;
+        height: 45px;
+        border-radius: 12px;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 
+          0 4px 8px rgba(0, 0, 0, 0.3),
+          inset 0 2px 0 rgba(255, 255, 255, 0.2),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+        background-clip: padding-box;
+        overflow: hidden;
+      }
+
+      .game-color-option::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        right: 2px;
+        height: 40%;
+        background: linear-gradient(180deg, 
+          rgba(255, 255, 255, 0.4) 0%, 
+          rgba(255, 255, 255, 0.1) 50%, 
+          transparent 100%);
+        border-radius: 6px 6px 20px 20px;
+        z-index: 2;
         pointer-events: none;
       }
-      
-      /* 버튼 기본 스타일 */
+
+      .game-color-option:hover {
+        transform: translateY(-3px) scale(1.1);
+        border-color: rgba(255, 255, 255, 0.6);
+        box-shadow: 
+          0 8px 16px rgba(0, 0, 0, 0.4),
+          inset 0 2px 0 rgba(255, 255, 255, 0.3),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.2),
+          0 0 0 2px rgba(255, 255, 255, 0.3);
+      }
+
+      .game-color-option.selected {
+        transform: translateY(-2px);
+        border-color: #fdcb6e;
+        box-shadow: 
+          0 6px 20px rgba(0, 0, 0, 0.4),
+          inset 0 2px 0 rgba(255, 255, 255, 0.4),
+          inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+          0 0 0 3px rgba(253, 203, 110, 0.6),
+          0 0 20px rgba(253, 203, 110, 0.3);
+        animation: selectedPulse 2s ease-in-out infinite;
+      }
+
+      @keyframes selectedPulse {
+        0%, 100% { 
+          box-shadow: 
+            0 6px 20px rgba(0, 0, 0, 0.4),
+            inset 0 2px 0 rgba(255, 255, 255, 0.4),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+            0 0 0 3px rgba(253, 203, 110, 0.6),
+            0 0 20px rgba(253, 203, 110, 0.3);
+        }
+        50% { 
+          box-shadow: 
+            0 6px 20px rgba(0, 0, 0, 0.4),
+            inset 0 2px 0 rgba(255, 255, 255, 0.4),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+            0 0 0 3px rgba(253, 203, 110, 0.8),
+            0 0 30px rgba(253, 203, 110, 0.5);
+        }
+      }
+
+      .game-color-option .check-mark {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0);
+        width: 20px;
+        height: 20px;
+        background: rgba(0, 0, 0, 0.8);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        color: white;
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        z-index: 3;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+
+      .game-color-option.selected .check-mark {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      /* 색상 정의 */
+      .color-black { background: linear-gradient(145deg, #2d3436, #636e72); }
+      .color-red { background: linear-gradient(145deg, #e17055, #d63031); }
+      .color-orange { background: linear-gradient(145deg, #fdcb6e, #e17055); }
+      .color-yellow { background: linear-gradient(145deg, #f1c40f, #f39c12); }
+      .color-green { background: linear-gradient(145deg, #00b894, #00a085); }
+      .color-cyan { background: linear-gradient(145deg, #74b9ff, #0984e3); }
+      .color-blue { background: linear-gradient(145deg, #6c5ce7, #5f3dc4); }
+      .color-purple { background: linear-gradient(145deg, #a29bfe, #6c5ce7); }
+      .color-pink { background: linear-gradient(145deg, #fd79a8, #e84393); }
+
+      /* ===== 버튼 스타일 ===== */
+      .game-button {
+        background: linear-gradient(145deg, #fd79a8, #e84393);
+        border: 2px solid #505050;
+        border-radius: 12px;
+        color: white;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: bold;
+        font-size: 1.1rem;
+        padding: 12px 24px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 
+          0 4px 8px rgba(0, 0, 0, 0.3),
+          inset 0 2px 0 rgba(255, 255, 255, 0.2);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        letter-spacing: 0.5px;
+      }
+
+      .game-button:hover {
+        transform: translateY(-2px);
+        border: 3px solid #f0f0f0;
+        box-shadow: 
+          0 6px 12px rgba(0, 0, 0, 0.4),
+          inset 0 2px 0 rgba(255, 255, 255, 0.3);
+      }
+
+      .random-button-compact {
+        background: linear-gradient(145deg, #fdcb6e, #e17055);
+        border: 2px solid #2d3436;
+        border-radius: 8px;
+        color: white;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: bold;
+        font-size: 1rem;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 
+          0 3px 6px rgba(0, 0, 0, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        height: 40px;
+        width: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        letter-spacing: 0.5px;
+      }
+
+      .random-button-compact:hover {
+        transform: translateY(-1px) scale(1.02);
+        box-shadow: 
+          0 4px 8px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+
+      /* ===== 입력 필드 ===== */
+      .game-input-compact {
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #2d3436;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: 400;
+        color: #2d3436;
+        outline: none;
+        transition: all 0.2s ease;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        height: 40px;
+      }
+
+      .game-input-compact:focus {
+        border-color: #fdcb6e;
+        box-shadow: 
+          inset 0 2px 4px rgba(0, 0, 0, 0.1),
+          0 0 0 2px rgba(253, 203, 110, 0.3);
+      }
+
+      /* ===== 기본 버튼들 (Tailwind 보완) ===== */
       .btn-primary {
         background-color: #f97316;
         color: white;
@@ -114,10 +478,6 @@
         background-color: #ea580c;
         transform: translateY(-1px);
         box-shadow: 0 8px 25px rgba(249, 115, 22, 0.3);
-      }
-      .btn-primary:active {
-        transform: translateY(0);
-        box-shadow: 0 2px 10px rgba(249, 115, 22, 0.2);
       }
       
       .btn-secondary {
@@ -130,10 +490,6 @@
         background-color: #4b5563;
         transform: translateY(-1px);
         box-shadow: 0 8px 25px rgba(107, 114, 128, 0.3);
-      }
-      .btn-secondary:active {
-        transform: translateY(0);
-        box-shadow: 0 2px 10px rgba(107, 114, 128, 0.2);
       }
       
       .btn-success {
@@ -160,70 +516,132 @@
         box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
       }
 
-      /* 색상 선택 버튼 */
-      .color-option {
-        transition: all 0.3s ease;
-        border: 2px solid #e5e7eb;
-      }
-      .color-option:hover {
-        transform: scale(1.05);
-        border-color: #f97316;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      }
-      .color-option.selected {
-        border-color: #f97316;
-        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+      /* ===== 게임 UI ===== */
+      #main-ui-container {
+        position: relative;
+        z-index: 10;
       }
 
-      /* 캐릭터 선택 버튼 */
-      .character-option {
-        transition: all 0.3s ease;
-        background-color: white;
-      }
-      .character-option:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-      }
-      .character-option.selected {
-        border-color: #f97316;
-        background-color: #fff7ed;
-        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+      #game-canvas-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+        background-color: #1a202c;
+        cursor: none;
       }
 
-      /* 스크롤바 스타일 */
-      ::-webkit-scrollbar {
-        width: 8px;
+      .game-hud {
+        position: fixed;
+        pointer-events: none;
       }
-      ::-webkit-scrollbar-track {
-        background: #f3f4f6;
-        border-radius: 10px;
+
+      #game-hud-top-left {
+        top: 20px;
+        left: 20px;
+        pointer-events: none;
       }
-      ::-webkit-scrollbar-thumb {
-        background: #d1d5db;
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #9ca3af;
+
+      #game-hud-top-right {
+        top: 20px;
+        right: 20px;
+        pointer-events: none;
       }
       
-      /* 입력 필드 스타일 */
-      .input-field {
-        transition: all 0.3s ease;
-        border: 1px solid #e5e7eb;
+      /* 게임 시간 표시 스타일 */
+      #game-time-left {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: bold;
+        font-size: 3rem;
+        color: #ff6b35;
+        text-shadow: 
+          0 0 1px #fff,
+          1px 1px 0 #fff, 
+          -1px -1px 0 #fff,
+          1px -1px 0 #fff,
+          -1px 1px 0 #fff,
+          0 2px 8px rgba(0, 0, 0, 0.8);
+        letter-spacing: 2px;
+        pointer-events: none;
       }
-      .input-field:focus {
-        border-color: #f97316;
-        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+      
+      /* 플레이어 점수 목록 스타일 */
+      .player-scores-list {
+        backdrop-filter: blur(10px);
+        z-index: 20;
+        background: rgba(0, 0, 0, 0.3);
+        font-size: 0.9rem;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        border-radius: 10px;
+        padding: 10px 15px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        margin-bottom: 10px;
+        pointer-events: none;
+      }
+      
+      .player-scores-list ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        pointer-events: none;
+      }
+      
+      .player-scores-list li {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: bold;
+        color: #ffffff;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        padding: 3px 0;
+        pointer-events: none;
+      }
+      
+      .player-scores-list li.font-bold {
+        color: #ffd93d !important;
+        font-size: 1.1em;
       }
 
-      /* 플레이어 오버레이 스타일 */
+      #game-countdown-overlay {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 30;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        text-shadow: 
+          0 0 1px #fff,
+          1px 1px 0 #fff, 
+          -1px -1px 0 #fff,
+          1px -1px 0 #fff,
+          -1px 1px 0 #fff,
+          0 2px 8px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+      }
+
+      #custom-crosshair {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #f97316;
+        border: 2px solid rgba(255, 255, 255, 0.9);
+        box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+        z-index: 100;
+        pointer-events: none;
+      }
+
+      /* ===== 플레이어 오버레이 ===== */
       .player-overlay {
         position: absolute;
         transform: translate(-50%, -100%);
         pointer-events: none;
         z-index: 10;
         transition: opacity 0.3s ease;
-        pointer-events: none;
       }
 
       .player-name {
@@ -232,12 +650,14 @@
         padding: 2px 6px;
         border-radius: 4px;
         font-size: 12px;
+        font-family: 'Jua', 'Gowun Dodum', cursive;
         font-weight: bold;
         text-align: center;
         margin-bottom: 4px;
         white-space: nowrap;
         border: 1px solid rgba(255, 255, 255, 0.3);
         pointer-events: none;
+        letter-spacing: 0.3px;
       }
 
       .player-health-bar {
@@ -247,8 +667,7 @@
         width: 60px;
         border: 1px solid rgba(255, 255, 255, 0.3);
         pointer-events: none;
-        margin-left: auto;
-        margin-right: auto;
+        margin: 0 auto;
       }
 
       .player-health-fill {
@@ -266,29 +685,326 @@
       .player-health-fill.low {
         background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
       }
+
+      /* ===== 플레이어 목록 ===== */
+      .player-list-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        /* border-bottom-width: 1px; */
+        /* border-color: #f3f4f6; */
+        /* transition: background-color 0.2s ease; */
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+      }
+
+      /*
+      .player-list-item:hover {
+        background-color: #f9fafb;
+      }
+      */
+
+      .player-list-item:last-child {
+        border-bottom-width: 0;
+      }
+
+      .player-color-preview {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin-right: 0.75rem;
+        border: 2px solid rgba(156, 163, 175, 0.3);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      /* ===== 로딩 화면 스타일 ===== */
+      .loading-title {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        color: #2d7a2f;
+        text-shadow: 
+          0 0 2px #fff,
+          2px 2px 0 #fff, 
+          -2px -2px 0 #fff,
+          2px -2px 0 #fff,
+          -2px 2px 0 #fff,
+          1px 1px 0 #fff,
+          -1px -1px 0 #fff,
+          1px -1px 0 #fff,
+          -1px 1px 0 #fff,
+          0 0 20px #66bb6a,
+          0 0 30px #66bb6a,
+          0 4px 8px rgba(0, 0, 0, 0.4);
+        animation: titlePulse 2s ease-in-out infinite;
+      }
+
+      .main-title {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        color: #2d7a2f;
+        text-shadow: 
+          0 0 1px #fff,
+          1px 1px 0 #fff, 
+          -1px -1px 0 #fff,
+          1px -1px 0 #fff,
+          -1px 1px 0 #fff,
+          1px 1px 0 #fff,
+          -1px -1px 0 #fff,
+          1px -1px 0 #fff,
+          -1px 1px 0 #fff,
+          0 0 20px #66bb6a,
+          0 0 30px #66bb6a,
+          0 4px 8px rgba(0, 0, 0, 0.4);
+        animation: titlePulse 2s ease-in-out infinite;
+      }
+
+      @keyframes titlePulse {
+        0%, 100% {
+          transform: scale(1);
+          filter: brightness(1);
+        }
+        50% {
+          transform: scale(1.05);
+          filter: brightness(1.2);
+        }
+      }
+
+      .loading-text-white-border {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        text-shadow: 
+          0 0 1px #fff,
+          1px 1px 0 #fff, 
+          -1px -1px 0 #fff,
+          1px -1px 0 #fff,
+          -1px 1px 0 #fff,
+          0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .veggie-icon {
+        display: inline-block;
+        animation: veggieRotate 3s ease-in-out infinite;
+      }
+
+      @keyframes veggieRotate {
+        0%, 100% { transform: rotate(-10deg) scale(1); }
+        50% { transform: rotate(10deg) scale(1.2); }
+      }
+
+
+
+      .loading-bar {
+        border: 3px solid #ffffff;
+        background: linear-gradient(90deg, 
+          #f59e0b 0%, 
+          #fbbf24 25%, 
+          #fde047 50%, 
+          #fbbf24 75%, 
+          #f59e0b 100%);
+        background-size: 200% 100%;
+        animation: loadingGradient 2s linear infinite;
+      }
+
+      @keyframes loadingGradient {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      .loading-bar-shine {
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, 
+          transparent 0%, 
+          rgba(255, 255, 255, 0.6) 50%, 
+          transparent 100%);
+        animation: loadingShine 2s ease-in-out infinite;
+      }
+
+      @keyframes loadingShine {
+        0% { left: -100%; }
+        100% { left: 100%; }
+      }
+
+      .loading-dot {
+        width: 10px;
+        height: 10px;
+        background: white;
+        border-radius: 50%;
+        animation: loadingDot 1.4s ease-in-out infinite;
+        box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+      }
+
+      @keyframes loadingDot {
+        0%, 80%, 100% {
+          transform: scale(0.8);
+          opacity: 0.5;
+        }
+        40% {
+          transform: scale(1.2);
+          opacity: 1;
+        }
+      }
+
+      /* ===== 기타 ===== */
+      .input-field {
+        transition: all 0.3s ease;
+        border: 1px solid #e5e7eb;
+      }
+
+      .input-field:focus {
+        border-color: #f97316;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+      }
+
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f3f4f6;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+      }
+
+      /* ===== 텍스트 폰트 스타일 ===== */
+      h2, h3 {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: 400;
+        letter-spacing: 0.5px;
+      }
+
+      #connection-status {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: 400;
+      }
+
+      #room-list::-webkit-scrollbar {
+        display: none; /* Chrome, Safari, Opera*/
+      }
+
+      #room-list {
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+      }
+
+      #game-result-display {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: 400;
+      }
+
+      #log-messages {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-size: 0.85rem;
+      }
+
+      .cute-text {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-size: 1.1em;
+        color: #fd79a8;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        letter-spacing: 1px;
+      }
+
+      .emphasis-text {
+        font-family: 'Jua', 'Gowun Dodum', cursive;
+        font-weight: 400;
+        color: #fdcb6e;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      }
+
+      .bounce-text {
+        animation: bounceText 2s ease-in-out infinite;
+      }
+
+      @keyframes bounceText {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-2px); }
+      }
+
+      .speech-bubble {
+        position: relative;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 10px 15px;
+        font-family: 'Jua', cursive;
+        color: #2d3436;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      .speech-bubble::after {
+        content: '';
+        position: absolute;
+        bottom: -8px;
+        left: 20px;
+        width: 0;
+        height: 0;
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 8px solid rgba(255, 255, 255, 0.95);
+      }
     </style>
   </head>
-  <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col items-center justify-center p-0 sm:p-0 select-none overflow-hidden">
+  <body class="text-gray-800 min-h-screen flex flex-col items-center justify-center p-0 sm:p-0 select-none overflow-hidden">
+    
+    <!-- 농장 동물들 배경 -->
+    <div class="farm-animals">
+      <div class="farm-animal">🐄</div>
+      <div class="farm-animal">🐷</div>
+      <div class="farm-animal">🐔</div>
+      <div class="farm-animal">🐑</div>
+      <div class="farm-animal">🐴</div>
+      <div class="farm-animal">🦆</div>
+      <div class="farm-animal">🐰</div>
+      <div class="farm-animal">🐱</div>
+      <div class="farm-animal">🐶</div>
+      <div class="farm-animal">🐮</div>
+      <div class="farm-animal">🐹</div>
+      <div class="farm-animal">🐺</div>
+      <div class="farm-animal">🦊</div>
+      <div class="farm-animal">🐻</div>
+    </div>
+
     <!-- 로딩 화면 -->
-    <div id="loading-screen" class="fixed inset-0 bg-white flex items-center justify-center z-50">
-      <div class="bg-white rounded-2xl p-8 shadow-lg border border-gray-200 max-w-md w-full mx-4">
-        <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">
+    <div id="loading-screen" class="fixed inset-0 flex items-center justify-center z-50">
+      <div class="relative game-container p-10 shadow-2xl max-w-lg w-full mx-4 z-10">
+        <h1 class="loading-title text-6xl sm:text-7xl font-bold text-center mb-8 relative">
+          <span class="veggie-icon">🥕</span> Veggie Battler <span class="veggie-icon">🥬</span>
+        </h1>
+        
+        <h2 class="text-2xl font-bold text-center mb-6 text-gray-700 loading-text-white-border">
           🎮 게임 로딩 중...
         </h2>
-        <div class="mb-4">
-          <div class="bg-gray-200 rounded-full h-3 overflow-hidden">
-            <div id="loading-progress-bar" class="bg-orange-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        
+        <!-- 로딩바 컨테이너 -->
+        <div class="mb-6 relative">
+          <div class="bg-gray-200 rounded-full h-5 overflow-hidden shadow-inner">
+            <div id="loading-progress-bar" class="loading-bar h-full rounded-full transition-all duration-300 relative overflow-hidden" style="width: 0%">
+              <div class="loading-bar-shine"></div>
+            </div>
           </div>
         </div>
-        <p id="loading-status" class="text-center text-gray-600 text-sm">에셋을 불러오는 중...</p>
-        <p id="loading-percentage" class="text-center text-2xl font-bold text-orange-500 mt-2">0%</p>
+        
+        <p id="loading-status" class="text-center text-gray-600 text-base font-medium loading-text-white-border">에셋을 불러오는 중...</p>
+        <p id="loading-percentage" class="text-center text-3xl font-bold text-gray-700 mt-3 loading-text-white-border">0%</p>
+        
+        <!-- 귀여운 로딩 아이콘 -->
+        <div class="flex justify-center mt-6 space-x-2">
+          <div class="loading-dot"></div>
+          <div class="loading-dot" style="animation-delay: 0.2s;"></div>
+          <div class="loading-dot" style="animation-delay: 0.4s;"></div>
+        </div>
       </div>
     </div>
 
     <div id="custom-crosshair" class="hidden"></div>
     <div id="game-canvas-container" class="hidden"></div>
 
-    <!-- 플레이어 오버레이 컨테이너 (체력바, 닉네임) -->
+    <!-- 플레이어 오버레이 컨테이너 -->
     <div id="player-overlays" class="hidden fixed inset-0 pointer-events-none z-10"></div>
 
     <div id="game-hud-top-left" class="game-hud hidden">
@@ -300,156 +1016,309 @@
       </div>
     </div>
     <div id="game-hud-top-right" class="game-hud hidden">
-      남은 시간: <span id="game-time-left">--</span>초
+      <span id="game-time-left">--</span>
     </div>
 
     <div id="game-countdown-overlay" class="hidden text-7xl sm:text-8xl font-extrabold text-orange-500"></div>
 
-    <div id="main-ui-container" class="bg-white shadow-xl rounded-2xl p-6 sm:p-8 w-full max-w-xl transition-all duration-300 border border-gray-200">
-      <header class="mb-6 flex justify-between items-center">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">게임</h1>
-        <div id="connection-status-indicator" class="flex items-center space-x-2">
-          <div id="connection-status-dot" class="w-3 h-3 rounded-full bg-gray-400 animate-pulse"></div>
-          <span id="connection-status" class="text-sm text-gray-500">연결 중...</span>
+    <div id="main-ui-container" class="hidden game-container shadow-xl rounded-2xl p-6 sm:p-8 w-full max-w-xl transition-all duration-300">
+      <header id="main-menu-header" class="hidden mb-6 flex justify-between items-center">
+        <div class="main-title text-3xl font-bold">
+          🥕 Veggie Battler 🥬
         </div>
+        <div id="connection-status-indicator">
+          <div id="connection-status-dot" class="w-3 h-3 rounded-full bg-gray-400 border-2 border-white animate-pulse"></div>
+          <span id="connection-status" class="text-sm text-white">연결 대기중</span>
+        </div> 
       </header>
 
-      <div id="initial-setup-section" class="space-y-4">
-        <h2 class="text-xl font-semibold text-gray-700 border-b border-gray-200 pb-2">플레이어 설정</h2>
-        <div id="character-preview-container" class="mb-4">
-          <div class="relative mx-auto w-[300px] h-[300px] bg-gray-100 rounded-xl overflow-hidden shadow-inner">
-            <canvas id="character-preview-canvas"></canvas>
+      <!-- 메인 메뉴 섹션 -->
+      <div id="main-menu-section" class="space-y-6 hidden">
+        <h1 class="loading-title text-6xl sm:text-7xl font-bold text-center mb-8 relative">
+          <span class="veggie-icon">🥕</span> Veggie Battler <span class="veggie-icon">🥬</span>
+        </h1>
+        <div class="space-y-4">
+          <button id="start-game-menu-button" class="game-button w-full text-2xl py-4">
+            🎮 게임 시작
+          </button>
+          <button id="how-to-play-button" class="game-button w-full text-2xl py-4" style="background: linear-gradient(145deg, #74b9ff, #0984e3);">
+            📖 게임 방법
+          </button>
+          <button id="credit-button" class="game-button w-full text-2xl py-4" style="background: linear-gradient(145deg, #a29bfe, #6c5ce7);">
+            🏆 Credit
+          </button>
+        </div>
+      </div>
+
+      <!-- How To Play 섹션 -->
+      <div id="how-to-play-section" class="space-y-4 hidden">
+        <h2 class="game-title">📖 게임 방법</h2>
+        <div class="bg-white/90 rounded-xl p-6 space-y-4 text-gray-800">
+          <div class="space-y-2">
+            <h3 class="font-bold text-lg">🎯 목표</h3>
+            <p>뿅망치로 다른 채소들을 쓰러뜨려 가장 높은 점수를 획득하세요!</p>
+            <p>2인 ~ 4인 플레이가 가능합니다.</p>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-bold text-lg">🎮 조작법</h3>
+            <ul class="list-disc list-inside space-y-1">
+              <li><strong>이동:</strong> W, A, S, D 키</li>
+              <li><strong>조준:</strong> 마우스 이동</li>
+              <li><strong>공격:</strong> 마우스 클릭</li>
+            </ul>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-bold text-lg">💡 팁</h3>
+            <ul class="list-disc list-inside space-y-1">
+              <li>플레이어의 체력이 0이 될 경우 쓰러집니다.</li>
+              <li>플레이어를 쓰러뜨리면 점수를 획득합니다.</li>
+              <li>플레이어가 쓰러지면 잠시 후 부활합니다.</li>
+              <li>맞거나 쓰러졌을 경우 일정 시간동안 무적 상태가 됩니다.</li>
+            </ul>
           </div>
         </div>
-        <div>
-          <label for="nickname" class="block text-sm font-medium text-gray-600 mb-2">닉네임</label>
-          <div class="flex space-x-2">
-            <input
-              type="text"
-              id="nickname"
-              value="Player"
-              class="input-field mt-1 block px-4 py-3 rounded-xl bg-gray-50 text-gray-800 placeholder-gray-400 focus:outline-none flex-1"
-            />
-            <button 
-              id="random-nickname-btn"
-              type="button"
-              class="mt-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl transform hover:scale-105 active:scale-95"
-              title="랜덤 닉네임 생성">
+        <button id="back-to-main-menu-from-how" class="game-button w-full">
+          ↩️ 메인 메뉴로
+        </button>
+      </div>
+
+      <!-- Credit 섹션 -->
+      <div id="credit-section" class="space-y-4 hidden">
+        <h2 class="game-title">🏆 제작</h2>
+        <div class="bg-white/90 rounded-xl p-6 space-y-4 text-gray-800 text-center">
+          <div class="space-y-2">
+            <h3 class="font-bold text-xl">Veggie Battler</h3>
+            <p>Built with Three.js, Go, Blender</p>
+          </div>
+          <div class="space-y-2">
+            <p class="text-lg">Computer Graphics Term Project</p>
+          </div>
+          <div class="space-y-1 text-sm text-gray-600">
+            <p>2019147509 이명훈</p>
+            <p>2020113003 이정은</p>
+          </div>
+        </div>
+        <button id="back-to-main-menu-from-credit" class="game-button w-full">
+          ↩️ 메인 메뉴로
+        </button>
+      </div>
+
+      <!-- 플레이어 설정 섹션 -->
+      <div id="initial-setup-section" class="space-y-4">
+        
+        <!-- 캐릭터 미리보기 -->
+        <div class="character-preview w-full h-48 mb-6 flex items-center justify-center">
+          <canvas id="character-preview-canvas" class="rounded-lg"></canvas>
+        </div>
+
+        <!-- 닉네임 입력 -->
+        <div class="mb-6">
+          <div class="flex items-center gap-3">
+            <input type="text" id="nickname" value="Player" class="game-input-compact flex-1" placeholder="닉네임 입력" />
+            <button type="button" id="random-nickname-btn" class="random-button-compact" title="랜덤 닉네임 생성">
               🎲
             </button>
           </div>
         </div>
-        <div>
-          <label for="character" class="block text-sm font-medium text-gray-600 mb-2">캐릭터 선택</label>
-          <div class="mt-2 grid grid-cols-4 gap-2" id="character-selector">
-            <button type="button" class="character-option w-full py-3 rounded-xl shadow-sm border-2 border-gray-300 hover:border-orange-500 transition-all" data-character="onion">
-              <span class="text-2xl">🧅</span>
-              <div class="text-xs mt-1">양파</div>
-            </button>
-            <button type="button" class="character-option w-full py-3 rounded-xl shadow-sm border-2 border-gray-300 hover:border-orange-500 transition-all" data-character="tomato">
-              <span class="text-2xl">🍅</span>
-              <div class="text-xs mt-1">토마토</div>
-            </button>
-            <button type="button" class="character-option w-full py-3 rounded-xl shadow-sm border-2 border-gray-300 hover:border-orange-500 transition-all" data-character="potato">
-              <span class="text-2xl">🥔</span>
-              <div class="text-xs mt-1">감자</div>
-            </button>
-            <button type="button" class="character-option w-full py-3 rounded-xl shadow-sm border-2 border-gray-300 hover:border-orange-500 transition-all" data-character="paprika">
-              <span class="text-2xl">🫑</span>
-              <div class="text-xs mt-1">파프리카</div>
-            </button>
+
+        <!-- 캐릭터 선택 -->
+        <div class="mb-6">
+          <div class="character-grid" id="character-selector">
+            <div class="character-slot selected" data-character="onion">
+              <div class="character-emoji">🧅</div>
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="character-slot" data-character="tomato">
+              <div class="character-emoji">🍅</div>
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="character-slot" data-character="potato">
+              <div class="character-emoji">🥔</div>
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="character-slot" data-character="paprika">
+              <div class="character-emoji">🫑</div>
+              <div class="check-mark">✓</div>
+            </div>
           </div>
           <input type="hidden" id="character" value="onion" />
         </div>
-        <div>
-          <label for="color" class="block text-sm font-medium text-gray-600 mb-2">색상 선택</label>
-          <div class="mt-2 grid grid-cols-4 gap-2" id="color-selector">
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#FF6B9D" style="background-color: #FF6B9D;" title="핑크"></button>
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#87CEEB" style="background-color: #87CEEB;" title="스카이블루"></button>
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#98FB98" style="background-color: #98FB98;" title="라이트그린"></button>
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#FFE4B5" style="background-color: #FFE4B5;" title="베이지"></button>
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#DDA0DD" style="background-color: #DDA0DD;" title="라벤더"></button>
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#F0E68C" style="background-color: #F0E68C;" title="카키"></button>
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#FFA07A" style="background-color: #FFA07A;" title="살몬"></button>
-            <button type="button" class="color-option w-full h-10 rounded-xl shadow-sm" data-color="#20B2AA" style="background-color: #20B2AA;" title="터키석"></button>
+
+        <!-- 색상 선택 -->
+        <div class="mb-6">
+          <div class="game-color-palette" id="color-selector">
+            <div class="game-color-option color-red selected" data-color="#e17055" title="레드">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-orange" data-color="#fdcb6e" title="오렌지">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-yellow" data-color="#f1c40f" title="옐로우">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-green" data-color="#00b894" title="그린">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-cyan" data-color="#74b9ff" title="시안">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-blue" data-color="#6c5ce7" title="블루">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-purple" data-color="#a29bfe" title="퍼플">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-pink" data-color="#fd79a8" title="핑크">
+              <div class="check-mark">✓</div>
+            </div>
+            <div class="game-color-option color-black" data-color="#2d3436" title="블랙">
+              <div class="check-mark">✓</div>
+            </div>
           </div>
-          <input type="hidden" id="color" value="#FF6B9D" />
+          <input type="hidden" id="color" value="#e17055" />
         </div>
-        <button id="set-profile-button" class="btn-primary w-full font-semibold py-3 px-5 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-opacity-50">
+
+        <!-- 게임 접속 버튼 -->
+        <button id="set-profile-button" class="game-button w-full">
           🎮 게임 접속
         </button>
       </div>
 
+      <!-- 로비 섹션 -->
       <div id="lobby-section" class="hidden space-y-4">
-        <h2 class="text-xl font-semibold text-gray-700 border-b border-gray-200 pb-2">로비</h2>
-        <div class="grid grid-cols-2 gap-3">
-          <button id="create-room-button" class="btn-success font-semibold py-3 px-5 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-opacity-50">
-            🏠 새 방 만들기
+      <div class="grid grid-cols-2 gap-3">
+        <button 
+          id="create-room-button" 
+          class="bg-green-500 text-white py-3 px-4 rounded-xl font-medium
+                  border-4 border-green-600 shadow-lg
+                  hover:bg-green-400 hover:border-green-500 
+                  transform hover:scale-105 transition-all duration-200
+                  relative overflow-hidden"
+        >
+        🏠 새 방 만들기
+        </button>
+        
+        <button 
+          id="list-rooms-button" 
+          class="bg-blue-500 text-white py-3 px-4 rounded-xl font-medium
+                  border-4 border-blue-600 shadow-lg
+                  hover:bg-blue-400 hover:border-blue-500
+                  transform hover:scale-105 transition-all duration-200
+                  relative overflow-hidden"
+        >
+        🪴 방 목록 새로고침
+        </button>
+      </div>
+      
+      <div>
+        <label for="join-room-code" class="block font-medium text-gray-700 mb-2">코드 입력:</label>
+        <div class="flex gap-3">
+          <input
+            type="text"
+            id="join-room-code"
+            maxlength="6"
+            placeholder="방 코드 (6자리)"
+            class="flex-1 px-4 py-3 rounded-xl bg-gray-100 text-gray-800 
+                    border-4 border-gray-300 shadow-lg
+                    focus:bg-white focus:border-blue-400 focus:outline-none
+                    transition-all duration-200 font-medium"
+            style="box-shadow: inset 0 4px 8px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.1)"
+          />
+          <button 
+            id="join-room-button" 
+            class="bg-orange-500 text-white px-6 py-3 rounded-xl font-bold
+                    border-4 border-orange-600 shadow-lg
+                    hover:bg-orange-400 hover:border-orange-500
+                    transform hover:scale-105 transition-all duration-200"
+          >
+            참가
           </button>
-          <button id="list-rooms-button" class="btn-info font-semibold py-3 px-5 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-opacity-50">
-            🔄 방 목록 갱신
-          </button>
-        </div>
-        <div>
-          <label for="join-room-code" class="block text-sm font-medium text-gray-600 mb-2">코드로 참가:</label>
-          <div class="flex space-x-2">
-            <input
-              type="text"
-              id="join-room-code"
-              maxlength="6"
-              placeholder="방 코드 (6자리)"
-              class="input-field mt-1 block px-4 py-3 rounded-xl bg-gray-50 text-gray-800 placeholder-gray-400 focus:outline-none flex-1"
-            />
-            <button id="join-room-button" class="btn-primary mt-1 font-semibold py-3 px-6 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-opacity-50 whitespace-nowrap min-w-[80px]">
-              🚀 참가
-            </button>
-          </div>
-        </div>
-        <h3 class="text-lg font-medium text-gray-700 pt-2">참가 가능한 방:</h3>
-        <div id="room-list" class="max-h-60 overflow-y-auto p-3 bg-gray-50 rounded-xl border border-gray-200">
-          <p class="text-gray-500">방 목록을 불러오는 중...</p>
         </div>
       </div>
+      
+      <div>
+        <label class="block font-medium text-gray-700 mb-2">참가 가능한 방:</label>
+        <div 
+          id="room-list" 
+          class="w-full px-4 py-3 rounded-xl bg-gray-100 text-black
+                  shadow-lg
+                  max-h-20 overflow-y-auto resize-none"
+          style="box-shadow: inset 0 4px 8px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.1)"
+        >
+          <p class="text-gray-500 font-medium">방 목록을 불러오는 중...</p>
+        </div>
+      </div>
+      </div>
 
+      <!-- 대기실 섹션 -->
       <div id="waiting-room-section" class="hidden space-y-4">
         <h2 class="text-xl font-semibold text-gray-700 border-b border-gray-200 pb-2">
-          대기실 - 방 코드: <span id="room-id-display" class="font-mono text-orange-500"></span>
+          방 코드: <span id="room-id-display" class="font-mono text-orange-500"></span>
         </h2>
         <div>
           <h3 class="text-lg font-medium text-gray-700 mb-1">
             플레이어 (<span id="current-players" class="font-semibold">0</span>/<span id="max-players" class="font-semibold">0</span>):
           </h3>
-          <div id="player-list" class="p-1 bg-gray-50 rounded-xl max-h-48 overflow-y-auto border border-gray-200"></div>
+          <div 
+            id="player-list" 
+            class="w-full px-4 py-3 rounded-xl bg-gray-100 text-black
+                   shadow-lg
+                   max-h-48 overflow-y-auto"
+            style="box-shadow: inset 0 4px 8px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.1); list-style: none;"
+          ></div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <button id="ready-button" class="btn-primary font-semibold py-3 px-5 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-opacity-50 col-span-1 sm:col-span-1">
-            ✨ 준비
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <button 
+            id="ready-button" 
+            class="bg-yellow-500 text-white py-3 px-5 rounded-xl font-bold
+                   border-4 border-yellow-600 shadow-lg
+                   transform hover:scale-105 transition-all duration-200
+                   relative overflow-hidden col-span-1 sm:col-span-1"
+          >
+          준비
           </button>
-          <button id="start-game-button" class="btn-success font-semibold py-3 px-5 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-opacity-50 hidden col-span-1 sm:col-span-1">
-            🎯 게임 시작
+          <button 
+            id="start-game-button" 
+            class="bg-green-500 text-white py-3 px-5 rounded-xl font-bold
+                   border-4 border-green-600 shadow-lg
+                   hover:bg-green-400 hover:border-green-500
+                   transform hover:scale-105 transition-all duration-200
+                   relative overflow-hidden hidden col-span-1 sm:col-span-1"
+          >
+          게임 시작
           </button>
-          <button id="leave-room-button" class="btn-secondary font-semibold py-3 px-5 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-opacity-50 col-span-1 sm:col-span-1">
-            🚪 나가기
+          <button 
+            id="leave-room-button" 
+            class="bg-gray-500 text-white py-3 px-5 rounded-xl font-bold
+                   border-4 border-gray-600 shadow-lg
+                   hover:bg-gray-400 hover:border-gray-500
+                   transform hover:scale-105 transition-all duration-200
+                   relative overflow-hidden col-span-1 sm:col-span-1"
+          >
+            나가기
           </button>
         </div>
       </div>
 
-      <div id="game-section" class="hidden"></div>
-
+      <!-- 게임 결과 섹션 -->
       <div id="game-result-section" class="hidden space-y-4">
         <h2 class="text-xl font-semibold text-gray-700 border-b border-gray-200 pb-2">게임 종료</h2>
         <div id="game-result-display" class="p-4 bg-gray-50 rounded-xl border border-gray-200"></div>
         <button id="back-to-waiting-room-button" class="btn-info w-full font-semibold py-3 px-5 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-opacity-50">
-          🏠 대기실로 돌아가기
+          대기실로 돌아가기
         </button>
       </div>
+
     </div>
 
+    <!-- 로그 버튼 -->
     <div class="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-50">
       <button id="toggle-log-button" class="font-semibold rounded-xl shadow-lg bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 py-2 px-3 text-sm transition-all duration-300 hover:shadow-xl">
-        📝 로그
+        📝 Logs
       </button>
     </div>
+
+    <!-- 로그 패널 -->
     <div id="log-panel" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
       <div class="bg-white shadow-2xl rounded-2xl p-5 sm:p-6 w-full max-w-2xl max-h-[80vh] flex flex-col border border-gray-200">
         <div class="flex justify-between items-center mb-3 border-b border-gray-200 pb-2">
@@ -462,7 +1331,11 @@
       </div>
     </div>
 
-    <!-- 분리된 JavaScript 모듈들을 순서대로 로드 -->
+    <footer class="fixed bottom-0 left-0 right-0 text-gray-600 text-center py-3 text-sm">
+      <p>ⓒ 2025 cas3205.myeonghoonlee.cloud</p>
+    </footer>
+
+    <!-- JavaScript 모듈들 -->
     <script type="module" src="js/asset-manager.js"></script>
     <script type="module" src="js/logger.js"></script>
     <script type="module" src="js/state-manager.js"></script>
@@ -472,37 +1345,5 @@
     <script type="module" src="js/input-handler.js"></script>
     <script type="module" src="js/character-preview.js"></script>
     <script type="module" src="js/main.js"></script>
-    
-    <script type="module">
-      import { generateNickname } from './js/nickname-generator.js';
-
-      // 페이지 로드 시 닉네임 생성기 초기화
-      document.addEventListener('DOMContentLoaded', function() {
-        const nicknameInput = document.getElementById('nickname');
-        const randomNicknameBtn = document.getElementById('random-nickname-btn');
-        
-        // 페이지 로드 시 자동으로 랜덤 닉네임 설정
-        nicknameInput.value = generateNickname();
-        
-        // 주사위 버튼 클릭 이벤트
-        randomNicknameBtn.addEventListener('click', function() {
-          // 버튼 애니메이션 효과
-          this.style.transform = 'scale(0.9)';
-          setTimeout(() => {
-            this.style.transform = 'scale(1)';
-          }, 100);
-          
-          // 새로운 랜덤 닉네임 생성
-          nicknameInput.value = generateNickname();
-          
-          // 입력 필드에 포커스를 잠깐 주어 변경을 알림
-          nicknameInput.focus();
-          nicknameInput.select();
-          setTimeout(() => {
-            nicknameInput.blur();
-          }, 500);
-        });
-      });
-    </script>
   </body>
 </html>

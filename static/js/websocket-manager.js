@@ -3,14 +3,11 @@
  */
 class WebSocketManager {
   constructor() {
-    // 현재 페이지의 호스트와 포트를 사용하여 WebSocket URL 생성
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host; // hostname:port 포함
+    const host = window.location.host;
     this.WS_URL = `${protocol}//${host}/ws`;
     
     this.ws = null;
-    
-    // console.log(`WebSocket URL: ${this.WS_URL}`);
   }
 
   connect(nickname, color, character) {
@@ -20,10 +17,10 @@ class WebSocketManager {
     }
 
     this.ws = new WebSocket(this.WS_URL);
-    logger.updateConnectionStatus("연결 시도 중...", true);
+    logger.updateConnectionStatus("연결중...", true);
 
     this.ws.onopen = () => {
-      logger.updateConnectionStatus("연결 성공!", true);
+      logger.updateConnectionStatus("온라인", true);
       logger.logMessage("서버에 연결되었습니다.", "success");
       this.sendMessage("set_nickname_color", { nickname, color, character });
       uiManager.showMainUISection(uiManager.lobbySection);
@@ -39,7 +36,7 @@ class WebSocketManager {
     };
 
     this.ws.onclose = () => {
-      logger.updateConnectionStatus("연결 끊김.", false);
+      logger.updateConnectionStatus("오프라인", false);
       logger.logMessage("서버와 연결이 끊어졌습니다.", "error");
       window.gameRenderer.exitGameView();
       uiManager.showMainUISection(uiManager.initialSetupSection);
@@ -47,7 +44,7 @@ class WebSocketManager {
     };
 
     this.ws.onerror = (error) => {
-      logger.updateConnectionStatus("연결 오류 발생!", false);
+      logger.updateConnectionStatus("오류", false);
       logger.logMessage(`웹소켓 오류: ${error.message || "알 수 없는 오류"}`, "error");
       console.error("WebSocket Error: ", error);
       window.gameRenderer.exitGameView();
@@ -81,14 +78,18 @@ class WebSocketManager {
       case "room_created":
         stateManager.setCurrentRoom(payload.id);
         stateManager.setIsOwner(payload.owner_id === stateManager.getClientId());
-        uiManager.updateWaitingRoomUI(payload);
+        stateManager.setRoomInfo(payload);
+        stateManager.updatePlayersFromArray(payload.players);
+        uiManager.updateWaitingRoomUI();
         uiManager.showMainUISection(uiManager.waitingRoomSection);
         break;
 
       case "room_joined":
         stateManager.setCurrentRoom(payload.id);
         stateManager.setIsOwner(payload.owner_id === stateManager.getClientId());
-        uiManager.updateWaitingRoomUI(payload);
+        stateManager.setRoomInfo(payload);
+        stateManager.updatePlayersFromArray(payload.players);
+        uiManager.updateWaitingRoomUI();
         uiManager.showMainUISection(uiManager.waitingRoomSection);
         break;
 
@@ -164,16 +165,14 @@ class WebSocketManager {
         break;
 
       case "room_state_updated":
+        stateManager.setRoomInfo(payload);
+        stateManager.updatePlayersFromArray(payload.players);
+        
         if (payload.room_id === stateManager.getCurrentRoomId() &&
             !uiManager.mainUiContainer.classList.contains("hidden")) {
-          uiManager.updateWaitingRoomUI({
-            id: payload.room_id,
-            players: payload.players,
-            max_players: stateManager.getRoomInfo()?.max_players || payload.max_players || 4,
-            state: payload.new_state,
-          });
+          uiManager.updateWaitingRoomUI();
           
-          if (payload.new_state === "waiting") {
+          if (payload.new_state === "waiting" && !uiManager.autoReturnCanceled) {
             uiManager.showMainUISection(uiManager.waitingRoomSection);
           }
         }
@@ -205,15 +204,15 @@ class WebSocketManager {
         break;
 
       case "game_countdown":
-        // 카운트다운 표시 (게임 초기화는 이미 game_init_data에서 완료됨)
+        // 카운트다운 표시
         uiManager.showGameCountdown(payload.seconds_left > 0 ? payload.seconds_left : "!");
         break;
 
       case "game_started":
-        // 게임 시작 메시지 표시 (게임 초기화는 이미 완료됨)
-        uiManager.showGameCountdown("게임 시작!");
+        // 게임 시작 메시지 표시
+        uiManager.showGameCountdown("START!");
         setTimeout(() => {
-          if (uiManager.gameCountdownOverlay.textContent === "게임 시작!") {
+          if (uiManager.gameCountdownOverlay.textContent === "START!") {
             uiManager.hideGameCountdown();
           }
         }, 500);
@@ -230,11 +229,12 @@ class WebSocketManager {
         window.gameRenderer.exitGameView();
         uiManager.updateGameResultUI(payload);
         uiManager.showMainUISection(uiManager.gameResultSection);
+        uiManager.startAutoReturnTimer(10);
         break;
 
       case "error":
-        alert(`서버 오류: ${payload.message}`);
-        logger.logMessage(`서버 오류: ${payload.message}`, "error");
+        alert(`${payload.message}`);
+        logger.logMessage(`오류: ${payload.message}`, "error");
         break;
 
       default:

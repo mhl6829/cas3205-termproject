@@ -9,7 +9,8 @@ class StateManager {
     this.isOwner = false;
     this.isReady = false;
     this.currentPlayersMap = new Map();
-    this.roomInfoFromServer = null; // 서버에서 받은 방 정보 저장용
+    // 서버에서 받은 방 정보 저장용
+    this.roomInfoFromServer = null;
     
     // 플레이어 입력 상태
     this.playerYaw = 0;
