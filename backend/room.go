@@ -289,7 +289,7 @@ func (r *Room) handleStartGameRequest(client *Client) {
 
 	canStart := true
 	errorMsg := ""
-	if len(r.clients) < 2 {
+	if len(r.clients) < 1 {
 		canStart = false
 		errorMsg = "플레이어 수가 부족합니다."
 		log.Printf("Room %s: Not enough players to start. Current: %d", r.id, len(r.clients))

@@ -386,33 +386,6 @@ class GameRenderer {
 
   updatePlayerMeshes() {
     const playersData = Array.from(stateManager.getAllPlayers().values());
-    const currentPlayerIdsFromServer = new Set(playersData.map((p) => p.id));
-    
-    // 서버에서 오지 않은 플레이어 메시 제거
-    this.playerMeshes.forEach((mesh, id) => {
-      if (!currentPlayerIdsFromServer.has(id)) {
-        this.scene.remove(mesh);
-        
-        // 애니메이션 믹서 정리
-        if (mesh.mixer && typeof mesh.mixer.stopAllAction === 'function') {
-          mesh.mixer.stopAllAction();
-          mesh.mixer = null;
-        }
-        
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) mesh.material.dispose();
-        this.playerMeshes.delete(id);
-        
-        // 위치 데이터 제거
-        this.playerTargetPositions.delete(id);
-        
-        // 오버레이 제거
-        this.removePlayerOverlay(id);
-        
-        // Halo 제거 (어차피 로컬 플레이어만 있음, 혹시 모르니)
-        this.removePlayerHalo(id);
-      }
-    });
 
     // 플레이어 메시 업데이트
     playersData.forEach((pData) => {
